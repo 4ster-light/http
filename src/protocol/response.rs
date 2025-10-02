@@ -1,32 +1,29 @@
-use std::{
-    collections::HashMap,
-    fmt
-};
+use std::{collections::HashMap, fmt};
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum HttpStatusCode {
     // 1xx Informational
     Continue = 100,
     SwitchingProtocols = 101,
-    
+
     // 2xx Success
     Ok = 200,
     Created = 201,
     Accepted = 202,
     NoContent = 204,
-    
+
     // 3xx Redirection
     MovedPermanently = 301,
     Found = 302,
     NotModified = 304,
-    
+
     // 4xx Client Error
     BadRequest = 400,
     Unauthorized = 401,
     Forbidden = 403,
     NotFound = 404,
     MethodNotAllowed = 405,
-    
+
     // 5xx Server Error
     InternalServerError = 500,
     NotImplemented = 501,
@@ -133,7 +130,8 @@ impl HttpResponse {
     pub fn with_body(mut self, body: Vec<u8>) -> Self {
         // Auto-set Content-Length if not already set
         if !self.headers.contains_key("content-length") {
-            self.headers.insert("content-length".to_string(), body.len().to_string());
+            self.headers
+                .insert("content-length".to_string(), body.len().to_string());
         }
         self.body = body;
         self
@@ -156,13 +154,13 @@ impl HttpResponse {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut response = format!("HTTP/1.1 {}\r\n", self.status);
-        
+
         for (name, value) in &self.headers {
             response.push_str(&format!("{}: {}\r\n", name, value));
         }
-        
+
         response.push_str("\r\n");
-        
+
         let mut bytes = response.into_bytes();
         bytes.extend(&self.body);
         bytes

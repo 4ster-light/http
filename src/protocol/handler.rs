@@ -1,25 +1,23 @@
-use std::path::Path;
-use tokio::{
-    net::TcpStream,
-    io::AsyncWriteExt,
-    fs
-};
 use crate::{
-    error::{Result, ServerError},
     config::Config,
+    error::{Result, ServerError},
     protocol::{
         request::{HttpMethod, HttpRequest},
-        response::HttpResponse
-    }
+        response::HttpResponse,
+    },
 };
+use std::path::Path;
+use tokio::{fs, io::AsyncWriteExt, net::TcpStream};
 
 pub async fn handle_http_request(socket: &mut TcpStream, request: HttpRequest) -> Result<()> {
     let response = match request.method {
         HttpMethod::Get => handle_get_request(&request).await,
         HttpMethod::Post => handle_post_request(&request).await,
         HttpMethod::Options => handle_options_request(&request).await,
-        _ => Ok(HttpResponse::new(crate::protocol::response::HttpStatusCode::MethodNotAllowed)
-            .with_text("Method not allowed")),
+        _ => Ok(
+            HttpResponse::new(crate::protocol::response::HttpStatusCode::MethodNotAllowed)
+                .with_text("Method not allowed"),
+        ),
     }?;
 
     socket.write_all(&response.to_bytes()).await?;
@@ -28,7 +26,7 @@ pub async fn handle_http_request(socket: &mut TcpStream, request: HttpRequest) -
 
 async fn handle_get_request(request: &HttpRequest) -> Result<HttpResponse> {
     let config = Config::default();
-    
+
     // Handle root path
     let file_path = if request.path == "/" {
         format!("{}/index.html", config.static_dir)
@@ -39,7 +37,7 @@ async fn handle_get_request(request: &HttpRequest) -> Result<HttpResponse> {
     // Security: prevent directory traversal
     let canonical_static_dir = std::fs::canonicalize(&config.static_dir)
         .map_err(|_| ServerError::FileNotFound(config.static_dir.clone()))?;
-    
+
     let canonical_file_path = match std::fs::canonicalize(&file_path) {
         Ok(path) => path,
         Err(_) => return Ok(HttpResponse::not_found().with_text("File not found")),
@@ -64,15 +62,23 @@ async fn handle_get_request(request: &HttpRequest) -> Result<HttpResponse> {
 async fn handle_post_request(request: &HttpRequest) -> Result<HttpResponse> {
     // Simple echo for POST requests
     let body_str = String::from_utf8_lossy(&request.body);
-    Ok(HttpResponse::ok()
-        .with_json(&format!(r#"{{"received": "{}", "path": "{}"}}"#, body_str, request.path)))
+    Ok(HttpResponse::ok().with_json(&format!(
+        r#"{{"received": "{}", "path": "{}"}}"#,
+        body_str, request.path
+    )))
 }
 
 async fn handle_options_request(_request: &HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::ok()
         .with_header("access-control-allow-origin", "*")
-        .with_header("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-        .with_header("access-control-allow-headers", "Content-Type, Authorization")
+        .with_header(
+            "access-control-allow-methods",
+            "GET, POST, PUT, DELETE, OPTIONS",
+        )
+        .with_header(
+            "access-control-allow-headers",
+            "Content-Type, Authorization",
+        )
         .with_body(Vec::new()))
 }
 

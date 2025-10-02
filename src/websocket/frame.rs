@@ -40,7 +40,7 @@ impl WebSocketFrame {
         }
 
         let mut buf = data;
-        
+
         // First byte: FIN (1 bit) + RSV (3 bits) + OpCode (4 bits)
         let first_byte = buf.get_u8();
         let _fin = (first_byte & 0x80) != 0;
@@ -110,7 +110,7 @@ impl WebSocketFrame {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut frame = BytesMut::new();
-        
+
         match self {
             WebSocketFrame::Text(text) => {
                 let payload = text.as_bytes();
@@ -129,7 +129,7 @@ impl WebSocketFrame {
                 Self::write_frame(&mut frame, OpCode::Pong, data);
             }
         }
-        
+
         frame.to_vec()
     }
 
@@ -182,7 +182,7 @@ mod tests {
     fn test_frame_serialization() {
         let text_frame = WebSocketFrame::text("Hello");
         let bytes = text_frame.to_bytes();
-        
+
         // Should start with 0x81 (FIN + TEXT opcode)
         assert_eq!(bytes[0], 0x81);
         // Length should be 5
@@ -195,7 +195,7 @@ mod tests {
     fn test_close_frame() {
         let close_frame = WebSocketFrame::close();
         let bytes = close_frame.to_bytes();
-        
+
         // Should start with 0x88 (FIN + CLOSE opcode)
         assert_eq!(bytes[0], 0x88);
         // Length should be 0

@@ -1,11 +1,8 @@
-use std::collections::HashMap;
 use http::{
-    protocol::request::{HttpRequest, HttpMethod},
-    websocket::{
-        frame::WebSocketFrame,
-        handshake::is_websocket_request
-    }
+    protocol::request::{HttpMethod, HttpRequest},
+    websocket::{frame::WebSocketFrame, handshake::is_websocket_request},
 };
+use std::collections::HashMap;
 
 #[test]
 fn test_websocket_detection() {
@@ -30,10 +27,10 @@ fn test_websocket_detection() {
 fn test_websocket_frame_text() {
     let text_frame = WebSocketFrame::Text("Hello, WebSocket!".to_string());
     let bytes = text_frame.to_bytes();
-    
+
     // Should start with 0x81 (FIN + TEXT opcode)
     assert_eq!(bytes[0], 0x81);
-    
+
     // Parse it back
     if let Some(WebSocketFrame::Text(parsed_text)) = WebSocketFrame::parse(&bytes) {
         assert_eq!(parsed_text, "Hello, WebSocket!");
@@ -46,7 +43,7 @@ fn test_websocket_frame_text() {
 fn test_websocket_frame_close() {
     let close_frame = WebSocketFrame::Close;
     let bytes = close_frame.to_bytes();
-    
+
     // Should start with 0x88 (FIN + CLOSE opcode)
     assert_eq!(bytes[0], 0x88);
     // Length should be 0
@@ -58,10 +55,10 @@ fn test_websocket_frame_ping_pong() {
     let ping_data = b"ping data".to_vec();
     let ping_frame = WebSocketFrame::Ping(ping_data.clone());
     let bytes = ping_frame.to_bytes();
-    
+
     // Should start with 0x89 (FIN + PING opcode)
     assert_eq!(bytes[0], 0x89);
-    
+
     // Parse it back
     if let Some(WebSocketFrame::Ping(parsed_data)) = WebSocketFrame::parse(&bytes) {
         assert_eq!(parsed_data, ping_data);

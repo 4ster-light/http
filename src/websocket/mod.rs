@@ -1,18 +1,17 @@
+use crate::{error::ServerError, protocol::request::HttpRequest, websocket::frame::WebSocketFrame};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream
-};
-use crate::{
-    protocol::request::HttpRequest,
-    error::ServerError,
-    websocket::frame::WebSocketFrame
+    net::TcpStream,
 };
 
-pub mod handshake;
 pub mod frame;
+pub mod handshake;
 
 /// Handles the WebSocket connection lifecycle.
-pub async fn handle_websocket(mut socket: TcpStream, request: HttpRequest) -> Result<(), ServerError> {
+pub async fn handle_websocket(
+    mut socket: TcpStream,
+    request: HttpRequest,
+) -> Result<(), ServerError> {
     // Perform handshake
     let handshake_response = handshake::generate_accept(&request)?;
     socket.write_all(&handshake_response).await?;
@@ -21,11 +20,11 @@ pub async fn handle_websocket(mut socket: TcpStream, request: HttpRequest) -> Re
     loop {
         let mut buffer = [0; 1024];
         let n = socket.read(&mut buffer).await?;
-        
+
         if n == 0 {
             break; // Connection closed
         }
-        
+
         if let Some(frame) = frame::WebSocketFrame::parse(&buffer[..n]) {
             match frame {
                 WebSocketFrame::Text(text) => {
