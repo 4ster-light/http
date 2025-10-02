@@ -1,0 +1,19 @@
+[package]
+name = "http"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "http"
+path = "src/lib.rs"
+
+[[bin]]
+name = "http"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22.1"
+bytes = "1.10.1"
+sha1 = "0.10.6"
+tokio = { version = "1.47.1", features = ["full"] }
+thiserror = "2.0.17"
