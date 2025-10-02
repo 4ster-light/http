@@ -4,7 +4,7 @@ A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in
 
 ## Features
 
-### HTTP 1.1 Support
+### HTTP 1.1 Support (RFC 9112)
 - ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE, CONNECT)
 - ✅ HTTP response generation with proper status codes
 - ✅ Static file serving with proper Content-Type detection
@@ -20,7 +20,7 @@ A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in
 - ✅ Connection close handling
 - ✅ Echo server functionality for testing
 
-### Type Safety & Developer Experience
+### Type Safety & Good Practices
 - ✅ Strongly-typed HTTP methods (`HttpMethod` enum)
 - ✅ Strongly-typed HTTP status codes (`HttpStatusCode` enum)
 - ✅ Comprehensive error handling with `thiserror`
@@ -188,6 +188,8 @@ The project includes comprehensive tests:
 - [ ] Logging and metrics
 - [ ] Configuration file support
 
-## License
+## Sponsor
 
-This project is for educational purposes demonstrating HTTP/1.1 and WebSocket protocol implementations in Rust.
+If you like this project, consider supporting me by buying me a coffee.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0B41HVJUR)
