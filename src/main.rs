@@ -1,9 +1,5 @@
+use http::{config::Config, error::Result, protocol::handle_connection};
 use tokio::net::TcpListener;
-use http::{
-    error::Result,
-    protocol::handle_connection,
-    config::Config
-};
 
 #[tokio::main]
 async fn main() -> Result<()> {

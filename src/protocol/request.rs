@@ -1,8 +1,5 @@
-use std::{
-    collections::HashMap,
-    fmt
-};
 use crate::error::{Result, ServerError};
+use std::{collections::HashMap, fmt};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HttpMethod {
@@ -65,7 +62,7 @@ impl HttpRequest {
     pub fn from_buffer(buffer: &[u8]) -> Result<Self> {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
-        
+
         if lines.is_empty() {
             return Err(ServerError::InvalidHttpRequest("Empty request"));
         }
@@ -83,13 +80,13 @@ impl HttpRequest {
         // Parse headers
         let mut headers = HashMap::new();
         let mut body_start = 1;
-        
+
         for (i, line) in lines.iter().enumerate().skip(1) {
             if line.is_empty() {
                 body_start = i + 1;
                 break;
             }
-            
+
             if let Some(colon_pos) = line.find(':') {
                 let key = line[..colon_pos].trim().to_lowercase();
                 let value = line[colon_pos + 1..].trim().to_string();

@@ -1,16 +1,10 @@
-use tokio::{
-    net::TcpStream,
-    io::AsyncReadExt
-};
+use tokio::{io::AsyncReadExt, net::TcpStream};
 
-use crate::{
-    error::ServerError,
-    websocket
-};
+use crate::{error::ServerError, websocket};
 
+pub mod handler;
 pub mod request;
 pub mod response;
-pub mod handler;
 
 /// Entry point for HTTP connections.
 /// Detects WebSocket upgrades or delegates to HTTP handler.

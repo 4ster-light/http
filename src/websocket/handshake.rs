@@ -1,32 +1,32 @@
-use base64::{Engine as _, engine::general_purpose};
-use sha1::{Sha1, Digest};
 use crate::{
-    protocol::{
-        request::HttpRequest,
-        response::HttpResponse,
-    },
-    error::{Result, ServerError}
+    error::{Result, ServerError},
+    protocol::{request::HttpRequest, response::HttpResponse},
 };
+use base64::{Engine as _, engine::general_purpose};
+use sha1::{Digest, Sha1};
 
 const WEBSOCKET_MAGIC_STRING: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub fn is_websocket_request(request: &HttpRequest) -> bool {
-    request.get_header("upgrade")
+    request
+        .get_header("upgrade")
         .map(|v| v.to_lowercase() == "websocket")
         .unwrap_or(false)
-        && request.get_header("connection")
+        && request
+            .get_header("connection")
             .map(|v| v.to_lowercase().contains("upgrade"))
             .unwrap_or(false)
         && request.get_header("sec-websocket-key").is_some()
-        && request.get_header("sec-websocket-version")
+        && request
+            .get_header("sec-websocket-version")
             .map(|v| v == "13")
             .unwrap_or(false)
 }
 
 pub fn generate_accept(request: &HttpRequest) -> Result<Vec<u8>> {
-    let websocket_key = request
-        .get_header("sec-websocket-key")
-        .ok_or_else(|| ServerError::WebSocketHandshakeFailed("Missing Sec-WebSocket-Key header".to_string()))?;
+    let websocket_key = request.get_header("sec-websocket-key").ok_or_else(|| {
+        ServerError::WebSocketHandshakeFailed("Missing Sec-WebSocket-Key header".to_string())
+    })?;
 
     let accept_key = generate_accept_key(websocket_key);
 
@@ -49,8 +49,8 @@ fn generate_accept_key(websocket_key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::protocol::request::HttpMethod;
+    use std::collections::HashMap;
 
     #[test]
     fn test_websocket_key_generation() {
