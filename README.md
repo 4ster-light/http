@@ -1,10 +1,38 @@
 # HTTP & WebSockets in Rust
 
-A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in Rust using idiomatic Rust practices and the `tokio` async runtime.
+A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in Rust using idiomatic Rust practices and
+the `tokio` async runtime.
+
+## Table of Contents
+
+- [Features](#features)
+    - [HTTP 1.1 Support (RFC 9112)](#http-11-support-rfc-9112)
+    - [WebSocket Support (RFC-6455)](#websocket-support-rfc-6455)
+    - [Type Safety & Good Practices](#type-safety--good-practices)
+- [Architecture](#architecture)
+- [Usage](#usage)
+    - [Running the Server](#running-the-server)
+    - [Testing](#testing)
+    - [HTTP Endpoints](#http-endpoints)
+    - [WebSocket](#websocket)
+- [Example Usage](#example-usage)
+    - [HTTP Client](#http-client)
+    - [WebSocket Client (Browser)](#websocket-client-browser)
+- [Code Examples](#code-examples)
+    - [Creating HTTP Responses](#creating-http-responses)
+    - [WebSocket Frame Handling](#websocket-frame-handling)
+- [Dependencies](#dependencies)
+- [Security Features](#security-features)
+- [Performance Characteristics](#performance-characteristics)
+- [Testing](#testing)
+- [Future Improvements](#future-improvements)
+- [License](#license)
+- [Sponsor](#sponsor)
 
 ## Features
 
 ### HTTP 1.1 Support (RFC 9112)
+
 - ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE, CONNECT)
 - ✅ HTTP response generation with proper status codes
 - ✅ Static file serving with proper Content-Type detection
@@ -13,6 +41,7 @@ A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in
 - ✅ Support for multiple content types (HTML, CSS, JS, JSON, images, etc.)
 
 ### WebSocket Support (RFC 6455)
+
 - ✅ WebSocket handshake (Sec-WebSocket-Key verification)
 - ✅ WebSocket frame parsing and generation
 - ✅ Text and binary message support
@@ -21,6 +50,7 @@ A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in
 - ✅ Echo server functionality for testing
 
 ### Type Safety & Good Practices
+
 - ✅ Strongly-typed HTTP methods (`HttpMethod` enum)
 - ✅ Strongly-typed HTTP status codes (`HttpStatusCode` enum)
 - ✅ Comprehensive error handling with `thiserror`
@@ -71,6 +101,7 @@ cargo test
 ### WebSocket
 
 Connect to `ws://127.0.0.1:8080` to establish a WebSocket connection. The server will:
+
 - Echo back any text messages prefixed with "Echo: "
 - Echo back binary messages as-is
 - Respond to ping frames with pong frames
@@ -136,16 +167,17 @@ let close_frame = WebSocketFrame::Close;
 let bytes = text_frame.to_bytes();
 
 // Parse from bytes
-if let Some(frame) = WebSocketFrame::parse(&bytes) {
+if let Some(frame) = WebSocketFrame::parse( & bytes) {
     match frame {
-        WebSocketFrame::Text(text) => println!("Received: {}", text),
-        WebSocketFrame::Close => println!("Connection closing"),
+        WebSocketFrame::Text(text) => println ! ("Received: {}", text),
+        WebSocketFrame::Close => println! ("Connection closing"),
         _ => {}
     }
 }
 ```
 
 ## Dependencies
+
 | Dependency  | Purpose                                 |
 |:-----------:|-----------------------------------------|
 |   `tokio`   | Async runtime with full features        |
@@ -187,6 +219,11 @@ The project includes comprehensive tests:
 - [ ] Connection pooling and rate limiting
 - [ ] Logging and metrics
 - [ ] Configuration file support
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
+for details.
 
 ## Sponsor
 
