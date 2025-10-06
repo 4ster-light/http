@@ -1,6 +1,5 @@
-use tokio::{io::AsyncReadExt, net::TcpStream};
-
 use crate::{error::ServerError, websocket};
+use tokio::{io::AsyncReadExt, net::TcpStream};
 
 pub mod handler;
 pub mod request;
@@ -13,10 +12,11 @@ pub async fn handle_connection(mut socket: TcpStream) -> Result<(), ServerError>
     let n = socket.read(&mut buffer).await?;
     let request = request::HttpRequest::from_buffer(&buffer[..n])?;
 
-    if websocket::handshake::is_websocket_request(&request) {
-        websocket::handle_websocket(socket, request).await?
+    if let Some(websocket_key) = websocket::handshake::is_websocket_request(&request) {
+        websocket::handle_websocket(socket, websocket_key).await?
     } else {
         handler::handle_http_request(&mut socket, request).await?
     }
+
     Ok(())
 }
