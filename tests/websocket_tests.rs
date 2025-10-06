@@ -20,7 +20,7 @@ fn test_websocket_detection() {
         body: Vec::new(),
     };
 
-    assert!(is_websocket_request(&request));
+    assert!(is_websocket_request(&request).is_some());
 }
 
 #[test]

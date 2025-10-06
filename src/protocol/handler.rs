@@ -3,7 +3,7 @@ use crate::{
     error::{Result, ServerError},
     protocol::{
         request::{HttpMethod, HttpRequest},
-        response::HttpResponse,
+        response::{HttpResponse, HttpStatusCode},
     },
 };
 use std::path::Path;
@@ -14,10 +14,9 @@ pub async fn handle_http_request(socket: &mut TcpStream, request: HttpRequest) -
         HttpMethod::Get => handle_get_request(&request).await,
         HttpMethod::Post => handle_post_request(&request).await,
         HttpMethod::Options => handle_options_request(&request).await,
-        _ => Ok(
-            HttpResponse::new(crate::protocol::response::HttpStatusCode::MethodNotAllowed)
-                .with_text("Method not allowed"),
-        ),
+        _ => {
+            Ok(HttpResponse::new(HttpStatusCode::MethodNotAllowed).with_text("Method not allowed"))
+        }
     }?;
 
     socket.write_all(&response.to_bytes()).await?;
@@ -49,12 +48,9 @@ async fn handle_get_request(request: &HttpRequest) -> Result<HttpResponse> {
 
     // Serve file if it exists
     match fs::read(&file_path).await {
-        Ok(contents) => {
-            let content_type = get_content_type(&file_path);
-            Ok(HttpResponse::ok()
-                .with_header("content-type", &content_type)
-                .with_body(contents))
-        }
+        Ok(contents) => Ok(HttpResponse::ok()
+            .with_header("content-type", &get_content_type(&file_path))
+            .with_body(contents)),
         Err(_) => Ok(HttpResponse::not_found().with_text("File not found")),
     }
 }

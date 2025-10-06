@@ -62,12 +62,11 @@ impl HttpRequest {
     pub fn from_buffer(buffer: &[u8]) -> Result<Self> {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
-
         if lines.is_empty() {
             return Err(ServerError::InvalidHttpRequest("Empty request"));
         }
 
-        // Parse request line (method path version)
+        // Parse request line
         let request_line_parts: Vec<&str> = lines[0].split_whitespace().collect();
         if request_line_parts.len() != 3 {
             return Err(ServerError::InvalidHttpRequest("Invalid request line"));
@@ -101,7 +100,7 @@ impl HttpRequest {
             Vec::new()
         };
 
-        Ok(HttpRequest {
+        Ok(Self {
             method,
             path,
             version,
