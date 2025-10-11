@@ -1,13 +1,14 @@
 # HTTP & WebSockets in Rust
 
-A basic implementation of HTTP 1.1 and WebSocket protocols built from scratch in Rust using idiomatic Rust practices and
-the `tokio` async runtime.
+A production-ready implementation of HTTP 1.1 and WebSocket protocols built from scratch in Rust using idiomatic Rust practices and the `tokio` async runtime.
+
+> **✨ Recently Enhanced:** This implementation now includes HTTP/1.1 persistent connections (keep-alive), chunked transfer encoding, WebSocket frame buffering, server-initiated ping/pong health checks, and comprehensive structured logging. See [REFINEMENTS.md](REFINEMENTS.md) for details.
 
 ## Table of Contents
 
 - [Features](#features)
-    - [HTTP 1.1 Support (RFC 9112)](#http-11-support-rfc-9112)
-    - [WebSocket Support (RFC-6455)](#websocket-support-rfc-6455)
+    - [HTTP 1.1 Support (RFC 2616/7230-7235)](#http-11-support-rfc-26167230-7235)
+    - [WebSocket Support (RFC 6455)](#websocket-support-rfc-6455)
     - [Type Safety & Good Practices](#type-safety--good-practices)
 - [Architecture](#architecture)
 - [Usage](#usage)
@@ -31,23 +32,33 @@ the `tokio` async runtime.
 
 ## Features
 
-### HTTP 1.1 Support (RFC 9112)
+### HTTP 1.1 Support (RFC 2616/7230-7235)
 
 - ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE, CONNECT)
+- ✅ **Persistent connections (Keep-Alive)** - multiple requests per TCP connection
+- ✅ **Chunked transfer encoding** - for streaming responses
+- ✅ **Content-Length body reading** - proper request body handling
 - ✅ HTTP response generation with proper status codes
+- ✅ **Auto-generated standard headers** (Date, Server, Connection, Keep-Alive)
 - ✅ Static file serving with proper Content-Type detection
 - ✅ Request header parsing and response header setting
 - ✅ Directory traversal protection
 - ✅ Support for multiple content types (HTML, CSS, JS, JSON, images, etc.)
+- ✅ **Header size protection** (16KB limit to prevent header bombs)
 
 ### WebSocket Support (RFC 6455)
 
 - ✅ WebSocket handshake (Sec-WebSocket-Key verification)
+- ✅ **Full frame buffering** - handles frames larger than buffer size
+- ✅ **Server-initiated PING/PONG** - health checks every 30s with timeout detection
+- ✅ **Protocol validation** - enforces masking, frame size limits, close codes
 - ✅ WebSocket frame parsing and generation
 - ✅ Text and binary message support
-- ✅ Ping/Pong frame handling
+- ✅ Ping/Pong frame handling with automatic responses
+- ✅ **Close frame with status codes and reasons**
 - ✅ Connection close handling
 - ✅ Echo server functionality for testing
+- ✅ **Control frame validation** (125 byte max payload)
 
 ### Type Safety & Good Practices
 
@@ -55,7 +66,10 @@ the `tokio` async runtime.
 - ✅ Strongly-typed HTTP status codes (`HttpStatusCode` enum)
 - ✅ Comprehensive error handling with `thiserror`
 - ✅ Builder pattern for HTTP responses
-- ✅ Extensive test coverage
+- ✅ **Structured logging with `tracing`** - production-ready observability
+- ✅ **Async/await throughout** - non-blocking I/O with Tokio
+- ✅ Extensive test coverage (17 tests, all passing)
+- ✅ **Zero clippy warnings** - clean, idiomatic Rust code
 
 ## Architecture
 
@@ -86,10 +100,22 @@ cargo run
 
 The server will start on `http://127.0.0.1:8080` by default.
 
+**Enable detailed logging:**
+```bash
+RUST_LOG=http=debug cargo run
+```
+
+**Log levels available:** `error`, `warn`, `info`, `debug`, `trace`
+
 ### Testing
 
 ```bash
 cargo test
+```
+
+Run with clippy for additional checks:
+```bash
+cargo clippy --all-targets
 ```
 
 ### HTTP Endpoints
@@ -167,7 +193,7 @@ let close_frame = WebSocketFrame::Close;
 let bytes = text_frame.to_bytes();
 
 // Parse from bytes
-if let Some(frame) = WebSocketFrame::parse( & bytes) {
+if let Some(frame) = WebSocketFrame::parse(&bytes) {
     match frame {
         WebSocketFrame::Text(text) => println ! ("Received: {}", text),
         WebSocketFrame::Close => println! ("Connection closing"),
@@ -215,10 +241,13 @@ The project includes comprehensive tests:
 - [ ] HTTP/2 support
 - [ ] TLS/SSL support
 - [ ] WebSocket extensions (compression, etc.)
+- [ ] **WebSocket message fragmentation** - reassembly of fragmented messages
 - [ ] Request routing and middleware
 - [ ] Connection pooling and rate limiting
-- [ ] Logging and metrics
+- [x] ~~Logging and metrics~~ ✅ Implemented with `tracing`
 - [ ] Configuration file support
+- [x] ~~HTTP/1.1 Keep-Alive~~ ✅ Implemented
+- [x] ~~Chunked transfer encoding~~ ✅ Implemented
 
 ## License
 

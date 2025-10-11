@@ -14,6 +14,9 @@ pub enum ServerError {
     #[error("WebSocket frame error: {0}")]
     WebSocketFrameError(&'static str),
 
+    #[error("WebSocket error: {0}")]
+    WebSocketError(String),
+
     #[error("Static file not found: {0}")]
     FileNotFound(String),
 }

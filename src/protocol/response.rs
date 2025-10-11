@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::{collections::HashMap, fmt};
 
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -84,6 +85,11 @@ impl HttpStatusCode {
             HttpStatusCode::ServiceUnavailable => "Service Unavailable",
         }
     }
+
+    pub fn is_success(&self) -> bool {
+        let code = self.code();
+        (200..300).contains(&code)
+    }
 }
 
 #[derive(Debug)]
@@ -91,6 +97,7 @@ pub struct HttpResponse {
     pub status: HttpStatusCode,
     pub headers: HashMap<String, String>,
     pub body: Vec<u8>,
+    pub keep_alive: bool,
 }
 
 impl HttpResponse {
@@ -99,6 +106,7 @@ impl HttpResponse {
             status,
             headers: HashMap::new(),
             body: Vec::new(),
+            keep_alive: true,
         }
     }
 
@@ -152,10 +160,44 @@ impl HttpResponse {
             .with_body(json.as_bytes().to_vec())
     }
 
+    pub fn close_connection(mut self) -> Self {
+        self.keep_alive = false;
+        self
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut response = format!("HTTP/1.1 {}\r\n", self.status);
 
-        for (name, value) in &self.headers {
+        // Add standard headers if not already present
+        let mut headers = self.headers.clone();
+
+        // Add Date header
+        if !headers.contains_key("date") {
+            let now = Utc::now();
+            headers.insert(
+                "date".to_string(),
+                now.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+            );
+        }
+
+        // Add Server header
+        if !headers.contains_key("server") {
+            headers.insert("server".to_string(), "http-rs/0.1.0".to_string());
+        }
+
+        // Add Connection header for keep-alive
+        if !headers.contains_key("connection") {
+            if self.keep_alive && self.status.is_success() {
+                headers.insert("connection".to_string(), "keep-alive".to_string());
+                if !headers.contains_key("keep-alive") {
+                    headers.insert("keep-alive".to_string(), "timeout=5, max=100".to_string());
+                }
+            } else {
+                headers.insert("connection".to_string(), "close".to_string());
+            }
+        }
+
+        for (name, value) in &headers {
             response.push_str(&format!("{}: {}\r\n", name, value));
         }
 

@@ -17,3 +17,6 @@ bytes = "1.10.1"
 sha1 = "0.10.6"
 tokio = { version = "1.47.1", features = ["full"] }
 thiserror = "2.0.17"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+chrono = "0.4.42"

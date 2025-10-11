@@ -9,9 +9,13 @@ use crate::{
 use std::path::Path;
 use tokio::{fs, io::AsyncWriteExt, net::TcpStream};
 
-pub async fn handle_http_request(socket: &mut TcpStream, request: HttpRequest) -> Result<()> {
+pub async fn handle_http_request(
+    socket: &mut TcpStream,
+    request: HttpRequest,
+    config: &Config,
+) -> Result<()> {
     let response = match request.method {
-        HttpMethod::Get => handle_get_request(&request).await,
+        HttpMethod::Get => handle_get_request(&request, config).await,
         HttpMethod::Post => handle_post_request(&request).await,
         HttpMethod::Options => handle_options_request(&request).await,
         _ => {
@@ -23,9 +27,7 @@ pub async fn handle_http_request(socket: &mut TcpStream, request: HttpRequest) -
     Ok(())
 }
 
-async fn handle_get_request(request: &HttpRequest) -> Result<HttpResponse> {
-    let config = Config::default();
-
+async fn handle_get_request(request: &HttpRequest, config: &Config) -> Result<HttpResponse> {
     // Handle root path
     let file_path = if request.path == "/" {
         format!("{}/index.html", config.static_dir)
