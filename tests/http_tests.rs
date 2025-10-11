@@ -8,7 +8,7 @@ fn test_http_request_parsing() {
     let request_data =
         b"GET /index.html HTTP/1.1\r\nHost: localhost:8080\r\nConnection: keep-alive\r\n\r\n";
 
-    let request = HttpRequest::from_buffer(request_data).unwrap();
+    let request = HttpRequest::from_buffer_sync(request_data).unwrap();
 
     assert_eq!(request.method, HttpMethod::Get);
     assert_eq!(request.path, "/index.html");
@@ -27,7 +27,7 @@ fn test_http_request_parsing() {
 fn test_websocket_request_parsing() {
     let request_data = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n";
 
-    let request = HttpRequest::from_buffer(request_data).unwrap();
+    let request = HttpRequest::from_buffer_sync(request_data).unwrap();
 
     assert_eq!(request.method, HttpMethod::Get);
     assert_eq!(
