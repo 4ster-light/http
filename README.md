@@ -1,41 +1,46 @@
 # HTTP & WebSockets in Rust
 
-A production-ready implementation of HTTP 1.1 and WebSocket protocols built from scratch in Rust using idiomatic Rust practices and the `tokio` async runtime.
+A production-ready implementation of HTTP 1.1 and WebSocket protocols built from
+scratch in Rust using idiomatic Rust practices and the `tokio` async runtime.
 
-> **✨ Recently Enhanced:** This implementation now includes HTTP/1.1 persistent connections (keep-alive), chunked transfer encoding, WebSocket frame buffering, server-initiated ping/pong health checks, and comprehensive structured logging. See [REFINEMENTS.md](REFINEMENTS.md) for details.
+> **✨ Recently Enhanced:** This implementation now includes HTTP/1.1 persistent
+> connections (keep-alive), chunked transfer encoding, WebSocket frame
+> buffering, server-initiated ping/pong health checks, and comprehensive
+> structured logging. See [REFINEMENTS.md](REFINEMENTS.md) for details.
 
 ## Table of Contents
 
 - [Features](#features)
-    - [HTTP 1.1 Support (RFC 2616/7230-7235)](#http-11-support-rfc-26167230-7235)
-    - [WebSocket Support (RFC 6455)](#websocket-support-rfc-6455)
-    - [Type Safety & Good Practices](#type-safety--good-practices)
+  - [HTTP 1.1 Support (RFC 2616/7230-7235)](#http-11-support-rfc-26167230-7235)
+  - [WebSocket Support (RFC 6455)](#websocket-support-rfc-6455)
+  - [Type Safety & Good Practices](#type-safety--good-practices)
 - [Architecture](#architecture)
 - [Usage](#usage)
-    - [Running the Server](#running-the-server)
-    - [Testing](#testing)
-    - [HTTP Endpoints](#http-endpoints)
-    - [WebSocket](#websocket)
+  - [Running the Server](#running-the-server)
+  - [Testing](#testing)
+  - [HTTP Endpoints](#http-endpoints)
+  - [WebSocket](#websocket)
 - [Example Usage](#example-usage)
-    - [HTTP Client](#http-client)
-    - [WebSocket Client (Browser)](#websocket-client-browser)
+  - [HTTP Client](#http-client)
+  - [WebSocket Client (Browser)](#websocket-client-browser)
 - [Code Examples](#code-examples)
-    - [Creating HTTP Responses](#creating-http-responses)
-    - [WebSocket Frame Handling](#websocket-frame-handling)
+  - [Creating HTTP Responses](#creating-http-responses)
+  - [WebSocket Frame Handling](#websocket-frame-handling)
 - [Dependencies](#dependencies)
 - [Security Features](#security-features)
 - [Performance Characteristics](#performance-characteristics)
 - [Testing](#testing)
 - [Future Improvements](#future-improvements)
 - [License](#license)
-- [Sponsor](#sponsor)
 
 ## Features
 
 ### HTTP 1.1 Support (RFC 2616/7230-7235)
 
-- ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE, CONNECT)
-- ✅ **Persistent connections (Keep-Alive)** - multiple requests per TCP connection
+- ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE,
+  CONNECT)
+- ✅ **Persistent connections (Keep-Alive)** - multiple requests per TCP
+  connection
 - ✅ **Chunked transfer encoding** - for streaming responses
 - ✅ **Content-Length body reading** - proper request body handling
 - ✅ HTTP response generation with proper status codes
@@ -50,7 +55,8 @@ A production-ready implementation of HTTP 1.1 and WebSocket protocols built from
 
 - ✅ WebSocket handshake (Sec-WebSocket-Key verification)
 - ✅ **Full frame buffering** - handles frames larger than buffer size
-- ✅ **Server-initiated PING/PONG** - health checks every 30s with timeout detection
+- ✅ **Server-initiated PING/PONG** - health checks every 30s with timeout
+  detection
 - ✅ **Protocol validation** - enforces masking, frame size limits, close codes
 - ✅ WebSocket frame parsing and generation
 - ✅ Text and binary message support
@@ -73,7 +79,7 @@ A production-ready implementation of HTTP 1.1 and WebSocket protocols built from
 
 ## Architecture
 
-```
+```txt
 src/
 ├── main.rs          # Server entry point
 ├── lib.rs           # Library exports
@@ -101,6 +107,7 @@ cargo run
 The server will start on `http://127.0.0.1:8080` by default.
 
 **Enable detailed logging:**
+
 ```bash
 RUST_LOG=http=debug cargo run
 ```
@@ -114,6 +121,7 @@ cargo test
 ```
 
 Run with clippy for additional checks:
+
 ```bash
 cargo clippy --all-targets
 ```
@@ -126,7 +134,8 @@ cargo clippy --all-targets
 
 ### WebSocket
 
-Connect to `ws://127.0.0.1:8080` to establish a WebSocket connection. The server will:
+Connect to `ws://127.0.0.1:8080` to establish a WebSocket connection. The server
+will:
 
 - Echo back any text messages prefixed with "Echo: "
 - Echo back binary messages as-is
@@ -150,8 +159,8 @@ curl -X POST http://127.0.0.1:8080/api/test -d "Hello, Server!"
 ```javascript
 const socket = new WebSocket("ws://127.0.0.1:8080");
 socket.onopen = () => {
-    console.log("Connected");
-    socket.send("Hello, Rust!");
+	console.log("Connected");
+	socket.send("Hello, Rust!");
 };
 socket.onmessage = (e) => console.log("Received:", e.data);
 socket.onerror = (e) => console.error("WebSocket error:", e);
@@ -205,7 +214,7 @@ if let Some(frame) = WebSocketFrame::parse(&bytes) {
 ## Dependencies
 
 | Dependency  | Purpose                                 |
-|:-----------:|-----------------------------------------|
+| :---------: | --------------------------------------- |
 |   `tokio`   | Async runtime with full features        |
 |   `bytes`   | Byte manipulation utilities             |
 |  `base64`   | Base64 encoding for WebSocket handshake |
@@ -253,9 +262,3 @@ The project includes comprehensive tests:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 for details.
-
-## Sponsor
-
-If you like this project, consider supporting me by buying me a coffee.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0B41HVJUR)
