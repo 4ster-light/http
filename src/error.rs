@@ -19,6 +19,9 @@ pub enum ServerError {
 
     #[error("Static file not found: {0}")]
     FileNotFound(String),
+
+    #[error("No available port found starting from {0}")]
+    PortUnavailable(u16),
 }
 
 pub type Result<T> = std::result::Result<T, ServerError>;
