@@ -159,8 +159,8 @@ curl -X POST http://127.0.0.1:8080/api/test -d "Hello, Server!"
 ```javascript
 const socket = new WebSocket("ws://127.0.0.1:8080");
 socket.onopen = () => {
-	console.log("Connected");
-	socket.send("Hello, Rust!");
+  console.log("Connected");
+  socket.send("Hello, Rust!");
 };
 socket.onmessage = (e) => console.log("Received:", e.data);
 socket.onerror = (e) => console.error("WebSocket error:", e);
