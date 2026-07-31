@@ -1,4 +1,4 @@
-use http::protocol::{
+use http::{
     request::{HttpMethod, HttpRequest},
     response::{HttpResponse, HttpStatusCode},
 };

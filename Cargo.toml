@@ -1,22 +1,33 @@
-[package]
-name = "http"
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
-[lib]
-name = "http"
-path = "src/lib.rs"
+# Shared dependency versions. Member crates inherit via `dep.workspace = true`
+# and enable only the tokio features they need.
+[workspace.dependencies]
+# Workspace members
+http = { path = "crates/http", version = "0.1.0" }
+websocket = { path = "crates/websocket", version = "0.1.0" }
 
-[[bin]]
-name = "http"
-path = "src/main.rs"
-
-[dependencies]
+# External crates
 base64 = "0.22.1"
 bytes = "1.10.1"
+httpdate = "1.0"
 sha1 = "0.10.6"
-tokio = { version = "1.47.1", features = ["full"] }
 thiserror = "2.0.17"
+tokio = { version = "1.47.1", default-features = false }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-chrono = "0.4.42"
+
+# Lint infrastructure (G1). Ratcheting plan per REFACTOR-PLAN.md:
+# `missing_docs` turns on in Phase 2 (docs/), clippy pedantic review in Phase 5.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "deny"

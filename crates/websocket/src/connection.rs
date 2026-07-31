@@ -1,4 +1,4 @@
-use crate::{error::Result, websocket::frame::WebSocketFrame};
+use crate::{error::Result, frame, frame::WebSocketFrame, handshake};
 use bytes::{Buf, BytesMut};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -6,9 +6,6 @@ use tokio::{
     time::{Duration, interval},
 };
 use tracing::{error, info, warn};
-
-pub mod frame;
-pub mod handshake;
 
 /// Handles the WebSocket connection lifecycle with ping/pong support.
 pub async fn handle_websocket(mut socket: TcpStream, websocket_key: &str) -> Result<()> {
@@ -135,7 +132,7 @@ async fn read_frame(
             // Need more data
             Ok(None)
         }
-        Err(e) => Err(crate::error::ServerError::WebSocketError(format!(
+        Err(e) => Err(crate::error::Error::WebSocketError(format!(
             "Parse error: {:?}",
             e
         ))),

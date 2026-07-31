@@ -18,7 +18,10 @@ impl Default for Config {
 
         Self {
             address: format!("127.0.0.1:{}", port),
-            static_dir: "./static".to_string(),
+            // Resolved relative to this crate (not the process CWD) so the
+            // server serves static files identically regardless of where
+            // `cargo run -p server` is invoked from.
+            static_dir: concat!(env!("CARGO_MANIFEST_DIR"), "/static").to_string(),
         }
     }
 }

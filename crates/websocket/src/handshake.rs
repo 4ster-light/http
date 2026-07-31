@@ -1,8 +1,6 @@
-use crate::{
-    error::Result,
-    protocol::{request::HttpRequest, response::HttpResponse},
-};
+use crate::error::Result;
 use base64::{Engine as _, engine::general_purpose};
+use http::{request::HttpRequest, response::HttpResponse};
 use sha1::{Digest, Sha1};
 
 const WEBSOCKET_MAGIC_STRING: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -54,7 +52,7 @@ fn generate_accept_key(websocket_key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::request::{HttpMethod, HttpRequest};
+    use http::request::HttpMethod;
     use std::collections::HashMap;
 
     #[test]

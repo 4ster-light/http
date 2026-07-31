@@ -1,5 +1,4 @@
-use chrono::Utc;
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, time::SystemTime};
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum HttpStatusCode {
@@ -171,12 +170,11 @@ impl HttpResponse {
         // Add standard headers if not already present
         let mut headers = self.headers.clone();
 
-        // Add Date header
+        // Add Date header (IMF-fixdate per RFC 7231 §7.1.1.1)
         if !headers.contains_key("date") {
-            let now = Utc::now();
             headers.insert(
                 "date".to_string(),
-                now.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+                httpdate::fmt_http_date(SystemTime::now()),
             );
         }
 

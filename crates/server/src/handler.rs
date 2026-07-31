@@ -1,10 +1,10 @@
 use crate::{
     config::Config,
     error::{Result, ServerError},
-    protocol::{
-        request::{HttpMethod, HttpRequest},
-        response::{HttpResponse, HttpStatusCode},
-    },
+};
+use http::{
+    request::{HttpMethod, HttpRequest},
+    response::{HttpResponse, HttpStatusCode},
 };
 use std::path::Path;
 use tokio::{fs, io::AsyncWriteExt, net::TcpStream};

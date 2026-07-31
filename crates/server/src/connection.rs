@@ -1,11 +1,11 @@
-use crate::{config::Config, error::ServerError, websocket};
+//! Application-level connection glue: reads requests, detects WebSocket
+//! upgrades, and dispatches to the HTTP handlers (REFACTOR-PLAN.md §3.2 D7).
+
+use crate::{config::Config, error::ServerError, handler};
 use bytes::BytesMut;
+use http::request;
 use tokio::{io::AsyncReadExt, net::TcpStream};
 use tracing::{error, info};
-
-pub mod handler;
-pub mod request;
-pub mod response;
 
 /// Entry point for HTTP connections.
 /// Detects WebSocket upgrades or delegates to HTTP handler with keep-alive support.
@@ -26,7 +26,7 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
                         return Ok(());
                     } else {
                         error!(?peer_addr, "Connection closed unexpectedly during request");
-                        return Err(ServerError::InvalidHttpRequest("Incomplete request"));
+                        return Err(http::Error::InvalidHttpRequest("Incomplete request").into());
                     }
                 }
                 Ok(n) => {
@@ -43,7 +43,9 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
                             websocket::handshake::is_websocket_request(&request)
                         {
                             info!(?peer_addr, "Upgrading to WebSocket");
-                            return websocket::handle_websocket(socket, websocket_key).await;
+                            return websocket::handle_websocket(socket, websocket_key)
+                                .await
+                                .map_err(ServerError::from);
                         }
 
                         // Handle HTTP request
@@ -72,7 +74,7 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
                     // Prevent header bombs
                     if buffer.len() > 16384 {
                         error!(?peer_addr, "Request headers too large");
-                        return Err(ServerError::InvalidHttpRequest("Headers too large"));
+                        return Err(http::Error::InvalidHttpRequest("Headers too large").into());
                     }
                 }
                 Err(e) => {

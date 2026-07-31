@@ -1,3 +1,7 @@
+//! Application-level error type: aggregates the protocol crate errors
+//! (`http::Error`, `websocket::Error`) plus server-specific failures
+//! (REFACTOR-PLAN.md §3.2 D5).
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -5,17 +9,11 @@ pub enum ServerError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Invalid HTTP request: {0}")]
-    InvalidHttpRequest(&'static str),
-
-    #[error("WebSocket handshake failed: {0}")]
-    WebSocketHandshakeFailed(String),
-
-    #[error("WebSocket frame error: {0}")]
-    WebSocketFrameError(&'static str),
+    #[error("HTTP error: {0}")]
+    Http(#[from] http::Error),
 
     #[error("WebSocket error: {0}")]
-    WebSocketError(String),
+    WebSocket(#[from] websocket::Error),
 
     #[error("Static file not found: {0}")]
     FileNotFound(String),

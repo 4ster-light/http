@@ -1,4 +1,9 @@
-use http::{config::Config, error::Result, protocol::handle_connection};
+mod config;
+mod connection;
+mod error;
+mod handler;
+
+use crate::{config::Config, connection::handle_connection, error::Result};
 use tokio::net::TcpListener;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -8,7 +13,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "http=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "server=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

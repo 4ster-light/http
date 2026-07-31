@@ -1,0 +1,18 @@
+[package]
+name = "websocket"
+description = "WebSocket (RFC 6455) protocol library: frame codec, handshake, connection lifecycle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+http.workspace = true
+base64.workspace = true
+bytes.workspace = true
+sha1.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "time"] }
+tracing.workspace = true

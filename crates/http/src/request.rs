@@ -1,4 +1,7 @@
-use crate::error::{Result, ServerError};
+use crate::{
+    body::read_chunked_body,
+    error::{Error, Result},
+};
 use std::{collections::HashMap, fmt};
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
@@ -32,7 +35,7 @@ impl fmt::Display for HttpMethod {
 }
 
 impl std::str::FromStr for HttpMethod {
-    type Err = ServerError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         match s.to_uppercase().as_str() {
@@ -45,7 +48,7 @@ impl std::str::FromStr for HttpMethod {
             "PATCH" => Ok(HttpMethod::Patch),
             "TRACE" => Ok(HttpMethod::Trace),
             "CONNECT" => Ok(HttpMethod::Connect),
-            _ => Err(ServerError::InvalidHttpRequest("Unsupported HTTP method")),
+            _ => Err(Error::InvalidHttpRequest("Unsupported HTTP method")),
         }
     }
 }
@@ -64,13 +67,13 @@ impl HttpRequest {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
         if lines.is_empty() {
-            return Err(ServerError::InvalidHttpRequest("Empty request"));
+            return Err(Error::InvalidHttpRequest("Empty request"));
         }
 
         // Parse request line
         let request_line_parts: Vec<&str> = lines[0].split_whitespace().collect();
         if request_line_parts.len() != 3 {
-            return Err(ServerError::InvalidHttpRequest("Invalid request line"));
+            return Err(Error::InvalidHttpRequest("Invalid request line"));
         }
 
         let method = request_line_parts[0].parse::<HttpMethod>()?;
@@ -97,10 +100,10 @@ impl HttpRequest {
             // Read body based on Content-Length
             let length: usize = content_length
                 .parse()
-                .map_err(|_| ServerError::InvalidHttpRequest("Invalid Content-Length"))?;
+                .map_err(|_| Error::InvalidHttpRequest("Invalid Content-Length"))?;
 
             if length > 10 * 1024 * 1024 {
-                return Err(ServerError::InvalidHttpRequest("Body too large"));
+                return Err(Error::InvalidHttpRequest("Body too large"));
             }
 
             let mut body = vec![0u8; length];
@@ -131,13 +134,13 @@ impl HttpRequest {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
         if lines.is_empty() {
-            return Err(ServerError::InvalidHttpRequest("Empty request"));
+            return Err(Error::InvalidHttpRequest("Empty request"));
         }
 
         // Parse request line
         let request_line_parts: Vec<&str> = lines[0].split_whitespace().collect();
         if request_line_parts.len() != 3 {
-            return Err(ServerError::InvalidHttpRequest("Invalid request line"));
+            return Err(Error::InvalidHttpRequest("Invalid request line"));
         }
 
         let method = request_line_parts[0].parse::<HttpMethod>()?;
@@ -171,57 +174,4 @@ impl HttpRequest {
     pub fn get_header(&self, name: &str) -> Option<&String> {
         self.headers.get(&name.to_lowercase())
     }
-}
-
-/// Read chunked transfer-encoded body
-async fn read_chunked_body(socket: &mut TcpStream) -> Result<Vec<u8>> {
-    let mut body = Vec::new();
-
-    loop {
-        // Read chunk size line
-        let mut size_line = Vec::new();
-        let mut byte_buf = [0u8; 1];
-
-        loop {
-            socket.read_exact(&mut byte_buf).await?;
-            size_line.push(byte_buf[0]);
-
-            if size_line.len() >= 2
-                && size_line[size_line.len() - 2] == b'\r'
-                && size_line[size_line.len() - 1] == b'\n'
-            {
-                break;
-            }
-
-            if size_line.len() > 20 {
-                return Err(ServerError::InvalidHttpRequest("Invalid chunk size"));
-            }
-        }
-
-        // Parse chunk size (ignore chunk extensions)
-        let size_str = String::from_utf8_lossy(&size_line[..size_line.len() - 2]);
-        let size_hex = size_str.split(';').next().unwrap_or("").trim();
-        let chunk_size = usize::from_str_radix(size_hex, 16)
-            .map_err(|_| ServerError::InvalidHttpRequest("Invalid chunk size"))?;
-
-        if chunk_size == 0 {
-            // Read trailing CRLF after last chunk
-            socket.read_exact(&mut [0u8; 2]).await?;
-            break;
-        }
-
-        if body.len() + chunk_size > 10 * 1024 * 1024 {
-            return Err(ServerError::InvalidHttpRequest("Chunked body too large"));
-        }
-
-        // Read chunk data
-        let mut chunk = vec![0u8; chunk_size];
-        socket.read_exact(&mut chunk).await?;
-        body.extend_from_slice(&chunk);
-
-        // Read trailing CRLF after chunk data
-        socket.read_exact(&mut [0u8; 2]).await?;
-    }
-
-    Ok(body)
 }

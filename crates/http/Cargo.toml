@@ -1,0 +1,15 @@
+[package]
+name = "http"
+description = "HTTP/1.1 protocol library: request/response parsing and serialization"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes.workspace = true
+httpdate.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "net"] }

@@ -1,8 +1,6 @@
-use http::{
-    protocol::request::{HttpMethod, HttpRequest},
-    websocket::{frame::WebSocketFrame, handshake::is_websocket_request},
-};
+use http::request::{HttpMethod, HttpRequest};
 use std::collections::HashMap;
+use websocket::{frame::WebSocketFrame, handshake::is_websocket_request};
 
 #[test]
 fn test_websocket_detection() {
