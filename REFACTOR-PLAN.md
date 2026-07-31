@@ -359,37 +359,37 @@ Each phase is one PR. Phases are ordered so every PR is green and reviewable.
 >
 > Validated exit criteria:
 >
-> - `cargo build --workspace` / `cargo test --workspace` green: all 17 tests
->   (6 unit + 11 integration) pass unchanged; only import paths rewired.
+> - `cargo build --workspace` / `cargo test --workspace` green: all 17 tests (6
+>   unit + 11 integration) pass unchanged; only import paths rewired.
 > - `cargo clippy --workspace --all-targets` zero warnings; `cargo fmt --check`
 >   clean; `cargo doc --workspace --no-deps` builds.
 > - `cargo run -p server` verified live: static GET `/` 200 (from
->   `crates/server/static`), 404s, path-traversal rejection, keep-alive
->   across sequential requests, WebSocket upgrade (101 + RFC 6455 accept-key
->   vector), masked-frame echo, close handshake.
+>   `crates/server/static`), 404s, path-traversal rejection, keep-alive across
+>   sequential requests, WebSocket upgrade (101 + RFC 6455 accept-key vector),
+>   masked-frame echo, close handshake.
 > - Dependency direction per D1 confirmed via `cargo tree`: `websocket → http`,
 >   `server → {http, websocket}`, no cycles, no shared "common" crate.
 > - History preserved via `git mv` (renames staged as `R`).
 >
 > Deviations/notes (all within Phase 1 scope):
 >
-> - `handle_connection` glue lives in `server` (per D7 it dispatches between
->   the HTTP handlers and the WS upgrade); `http::connection` arrives with the
->   Phase 3 D2/D3 generic-IO refactor, as does `limits.rs`.
+> - `handle_connection` glue lives in `server` (per D7 it dispatches between the
+>   HTTP handlers and the WS upgrade); `http::connection` arrives with the Phase
+>   3 D2/D3 generic-IO refactor, as does `limits.rs`.
 > - `http::body` created with the chunked reader (moved out of `request.rs`).
 > - D6/Q6 applied while rewiring the dependency graph: `chrono` → `httpdate`
 >   (Date header byte-format unchanged, IMF-fixdate).
 > - Per-crate error types per D5: `http::Error`, `websocket::Error`
 >   (`#[from] http::Error`), `server::ServerError` aggregates both.
-> - `[workspace.lints]` infrastructure in place (`unsafe_code = forbid`,
->   clippy `all = deny`); `missing_docs` + pedantic ratchet deferred to
->   Phases 2/5 as scheduled in §4.2/§7.
+> - `[workspace.lints]` infrastructure in place (`unsafe_code = forbid`, clippy
+>   `all = deny`); `missing_docs` + pedantic ratchet deferred to Phases 2/5 as
+>   scheduled in §4.2/§7.
 > - `Config::default().static_dir` now resolves via `CARGO_MANIFEST_DIR`
 >   (required by the `static/` move; serving behavior unchanged, no longer
 >   CWD-dependent). Tracing `EnvFilter` default renamed `http=info` →
 >   `server=info` to match the new binary crate name.
-> - Port-scan fallback (D8) intentionally untouched — removal lands in
->   Phase 3.2 as scheduled.
+> - Port-scan fallback (D8) intentionally untouched — removal lands in Phase 3.2
+>   as scheduled.
 
 - Mechanical migration per §3.3 (`git mv`, workspace manifest, import rewiring).
   No behavior changes.

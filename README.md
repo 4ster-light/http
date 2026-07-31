@@ -1,264 +1,243 @@
 # HTTP & WebSockets in Rust
 
-A production-ready implementation of HTTP 1.1 and WebSocket protocols built from
-scratch in Rust using idiomatic Rust practices and the `tokio` async runtime.
+A from-scratch implementation of HTTP/1.1 and WebSocket (RFC 6455) protocols in
+Rust, built on `tokio`. This is a learning and portfolio project with a
+networking + cybersecurity angle: the goal is not just to make the protocols
+work, but to understand them deeply enough to document compliance honestly and
+to prove — with tests — that the server holds up under attack.
 
-> **✨ Recently Enhanced:** This implementation now includes HTTP/1.1 persistent
-> connections (keep-alive), chunked transfer encoding, WebSocket frame
-> buffering, server-initiated ping/pong health checks, and comprehensive
-> structured logging. See [REFINEMENTS.md](REFINEMENTS.md) for details.
+The code is organized as a Cargo workspace of small, single-purpose crates. An
+active refactor & hardening program is tracked in
+[REFACTOR-PLAN.md](REFACTOR-PLAN.md), including a full security audit of the
+current code and the roadmap to address every finding.
 
 ## Table of Contents
 
 - [Features](#features)
-  - [HTTP 1.1 Support (RFC 2616/7230-7235)](#http-11-support-rfc-26167230-7235)
-  - [WebSocket Support (RFC 6455)](#websocket-support-rfc-6455)
-  - [Type Safety & Good Practices](#type-safety--good-practices)
-- [Architecture](#architecture)
+  - [HTTP/1.1 (RFC 7230–7235)](#http11-rfc-72307235)
+  - [WebSocket (RFC 6455)](#websocket-rfc-6455)
+  - [Engineering practices](#engineering-practices)
+- [Workspace layout](#workspace-layout)
 - [Usage](#usage)
-  - [Running the Server](#running-the-server)
-  - [Testing](#testing)
-  - [HTTP Endpoints](#http-endpoints)
-  - [WebSocket](#websocket)
-- [Example Usage](#example-usage)
-  - [HTTP Client](#http-client)
-  - [WebSocket Client (Browser)](#websocket-client-browser)
-- [Code Examples](#code-examples)
-  - [Creating HTTP Responses](#creating-http-responses)
-  - [WebSocket Frame Handling](#websocket-frame-handling)
+  - [Running the server](#running-the-server)
+  - [Tests, lints and docs](#tests-lints-and-docs)
+  - [HTTP endpoints](#http-endpoints)
+  - [WebSocket endpoint](#websocket-endpoint)
+- [Trying it out](#trying-it-out)
+- [Using the libraries](#using-the-libraries)
 - [Dependencies](#dependencies)
-- [Security Features](#security-features)
-- [Performance Characteristics](#performance-characteristics)
-- [Testing](#testing)
-- [Future Improvements](#future-improvements)
+- [Security](#security)
+- [Roadmap](#roadmap)
 - [License](#license)
 
 ## Features
 
-### HTTP 1.1 Support (RFC 2616/7230-7235)
+### HTTP/1.1 (RFC 7230–7235)
 
-- ✅ HTTP request parsing (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, TRACE,
-  CONNECT)
-- ✅ **Persistent connections (Keep-Alive)** - multiple requests per TCP
-  connection
-- ✅ **Chunked transfer encoding** - for streaming responses
-- ✅ **Content-Length body reading** - proper request body handling
-- ✅ HTTP response generation with proper status codes
-- ✅ **Auto-generated standard headers** (Date, Server, Connection, Keep-Alive)
-- ✅ Static file serving with proper Content-Type detection
-- ✅ Request header parsing and response header setting
-- ✅ Directory traversal protection
-- ✅ Support for multiple content types (HTML, CSS, JS, JSON, images, etc.)
-- ✅ **Header size protection** (16KB limit to prevent header bombs)
+- ✅ Request parsing for all common methods (GET, POST, PUT, DELETE, HEAD,
+  OPTIONS, PATCH, TRACE, CONNECT)
+- ✅ Persistent connections (keep-alive): multiple requests per TCP connection
+- ✅ Request body reading via `Content-Length` and chunked transfer-encoding
+- ✅ Response builder with strongly-typed status codes
+- ✅ Auto-generated standard headers (`Date`, `Server`, `Connection`,
+  `Keep-Alive`)
+- ✅ Static file serving with content-type detection and directory-traversal
+  protection
+- ✅ Header-size cap (16 KB) against header-bomb attacks
 
-### WebSocket Support (RFC 6455)
+### WebSocket (RFC 6455)
 
-- ✅ WebSocket handshake (Sec-WebSocket-Key verification)
-- ✅ **Full frame buffering** - handles frames larger than buffer size
-- ✅ **Server-initiated PING/PONG** - health checks every 30s with timeout
-  detection
-- ✅ **Protocol validation** - enforces masking, frame size limits, close codes
-- ✅ WebSocket frame parsing and generation
-- ✅ Text and binary message support
-- ✅ Ping/Pong frame handling with automatic responses
-- ✅ **Close frame with status codes and reasons**
-- ✅ Connection close handling
-- ✅ Echo server functionality for testing
-- ✅ **Control frame validation** (125 byte max payload)
+- ✅ Opening handshake (`Sec-WebSocket-Accept` computation per §4.2)
+- ✅ Frame codec with buffering: incomplete frames are reassembled across reads
+- ✅ Text and binary messages, echo behavior in the demo server
+- ✅ Masking enforcement: unmasked client frames are rejected (§5.3)
+- ✅ Control-frame validation (≤ 125 byte payload, close-code table)
+- ✅ Server-initiated ping/pong liveness checks with timeout
+- ✅ Clean close handshake with status codes and reasons
 
-### Type Safety & Good Practices
+### Engineering practices
 
-- ✅ Strongly-typed HTTP methods (`HttpMethod` enum)
-- ✅ Strongly-typed HTTP status codes (`HttpStatusCode` enum)
-- ✅ Comprehensive error handling with `thiserror`
-- ✅ Builder pattern for HTTP responses
-- ✅ **Structured logging with `tracing`** - production-ready observability
-- ✅ **Async/await throughout** - non-blocking I/O with Tokio
-- ✅ Extensive test coverage (17 tests, all passing)
-- ✅ **Zero clippy warnings** - clean, idiomatic Rust code
+- ✅ Cargo workspace: two protocol libraries + one demo binary (see below)
+- ✅ Strong typing for methods, status codes, frames and errors (`thiserror`)
+- ✅ Per-crate error types: `http::Error`, `websocket::Error`
+- ✅ Async/await throughout, one `tokio` task per connection
+- ✅ Structured logging with `tracing`
+- ✅ 17 tests (6 unit + 11 integration), clippy-clean with warnings denied
+  workspace-wide, `unsafe_code` forbidden
 
-## Architecture
+## Workspace layout
 
 ```txt
-src/
-├── main.rs          # Server entry point
-├── lib.rs           # Library exports
-├── config.rs        # Configuration
-├── error.rs         # Error types
-├── protocol/        # HTTP implementation
-│   ├── mod.rs       # HTTP connection handling
-│   ├── request.rs   # HTTP request parsing
-│   ├── response.rs  # HTTP response generation
-│   └── handler.rs   # HTTP request handlers
-└── websocket/       # WebSocket implementation
-    ├── mod.rs       # WebSocket connection handling
-    ├── handshake.rs # WebSocket handshake
-    └── frame.rs     # WebSocket frame parsing/generation
+├── Cargo.toml              # workspace root: shared deps + lints
+└── crates/
+    ├── http/               # HTTP/1.1 protocol library
+    │   ├── src/
+    │   │   ├── request.rs  #   request-line + header parsing
+    │   │   ├── response.rs #   response builder
+    │   │   ├── body.rs     #   Content-Length / chunked body readers
+    │   │   └── error.rs    #   http::Error
+    │   └── tests/          # protocol integration tests
+    ├── websocket/          # WebSocket library (depends on http)
+    │   ├── src/
+    │   │   ├── frame.rs    #   frame codec
+    │   │   ├── handshake.rs#   upgrade validation + accept key
+    │   │   ├── connection.rs#  lifecycle: echo, ping/pong, close
+    │   │   └── error.rs    #   websocket::Error
+    │   └── tests/
+    └── server/             # demo application (binary)
+        ├── src/            #   config, connection dispatch, handlers
+        └── static/         #   files served by the demo
 ```
+
+Dependency direction is strictly `websocket → http` (the WebSocket handshake is
+an HTTP upgrade) and `server → {http, websocket}`. No cycles, no shared "common"
+crate — each protocol crate carries only what it needs, so they can be read and
+reused independently.
 
 ## Usage
 
-### Running the Server
+### Running the server
 
 ```bash
-cargo run
+cargo run -p server
 ```
 
-The server will start on `http://127.0.0.1:8080` by default.
+The demo server starts on <http://127.0.0.1:8000>. If that port is taken it
+currently scans for a free one and logs a warning — a future milestone replaces
+this with explicit, fail-fast configuration (see REFACTOR-PLAN.md, D8).
 
-**Enable detailed logging:**
+Enable detailed logging with `RUST_LOG`:
 
 ```bash
-RUST_LOG=http=debug cargo run
+RUST_LOG=server=debug cargo run -p server
 ```
 
-**Log levels available:** `error`, `warn`, `info`, `debug`, `trace`
-
-### Testing
+### Tests, lints and docs
 
 ```bash
-cargo test
+cargo test --workspace                    # all 17 tests
+cargo test -p http                        # just one crate
+cargo clippy --workspace --all-targets    # warnings are denied
+cargo doc --workspace --open              # API documentation
 ```
 
-Run with clippy for additional checks:
+### HTTP endpoints
+
+- `GET /` — serves `crates/server/static/index.html`
+- `GET /<file>` — serves files from the static directory
+- `POST /<any path>` — echo endpoint, returns the body as JSON
+- `OPTIONS /<any path>` — permissive CORS preflight response
+
+### WebSocket endpoint
+
+Any path with valid upgrade headers is accepted (e.g. `ws://127.0.0.1:8000`).
+The server echoes text messages back prefixed with `Echo:`, echoes binary
+messages as-is, answers pings with pongs, and performs a proper close handshake.
+
+## Trying it out
 
 ```bash
-cargo clippy --all-targets
+# Fetch the index page
+curl -i http://127.0.0.1:8000/
+
+# Post some data to the echo endpoint
+curl -X POST http://127.0.0.1:8000/api/test -d "Hello, Server!"
 ```
 
-### HTTP Endpoints
-
-- `GET /` - Serves `static/index.html`
-- `GET /path/to/file` - Serves static files from the `static/` directory
-- `POST /any/path` - Echo endpoint that returns the request body as JSON
-
-### WebSocket
-
-Connect to `ws://127.0.0.1:8080` to establish a WebSocket connection. The server
-will:
-
-- Echo back any text messages prefixed with "Echo: "
-- Echo back binary messages as-is
-- Respond to ping frames with pong frames
-- Handle connection close properly
-
-## Example Usage
-
-### HTTP Client
-
-```bash
-# Get the index page
-curl http://127.0.0.1:8080/
-
-# Post some data
-curl -X POST http://127.0.0.1:8080/api/test -d "Hello, Server!"
-```
-
-### WebSocket Client (Browser)
+From a browser (already wired up in the served `index.html`):
 
 ```javascript
-const socket = new WebSocket("ws://127.0.0.1:8080");
-socket.onopen = () => {
-  console.log("Connected");
-  socket.send("Hello, Rust!");
-};
+const socket = new WebSocket("ws://127.0.0.1:8000");
+socket.onopen = () => socket.send("Hello, Rust!");
 socket.onmessage = (e) => console.log("Received:", e.data);
-socket.onerror = (e) => console.error("WebSocket error:", e);
-socket.onclose = (e) => console.log("Connection closed:", e.code, e.reason);
+socket.onclose = (e) => console.log("Closed:", e.code, e.reason);
 ```
 
-## Code Examples
+## Using the libraries
 
-### Creating HTTP Responses
+Building an HTTP response with the `http` crate:
 
 ```rust
-use http::http::{HttpResponse, HttpStatusCode};
+use http::response::{HttpResponse, HttpStatusCode};
 
 // Simple text response
-let response = HttpResponse::ok()
-    .with_text("Hello, World!");
+let response = HttpResponse::ok().with_text("Hello, World!");
 
-// JSON response
+// JSON with a custom status code
 let response = HttpResponse::new(HttpStatusCode::Created)
     .with_json(r#"{"message": "Resource created"}"#);
 
-// Custom headers
-let response = HttpResponse::ok()
+// Custom headers; to_bytes() serializes the full response
+let bytes = HttpResponse::ok()
     .with_header("cache-control", "no-cache")
-    .with_html("<h1>Hello</h1>");
+    .with_html("<h1>Hello</h1>")
+    .to_bytes();
 ```
 
-### WebSocket Frame Handling
+Working with frames from the `websocket` crate:
 
 ```rust
-use http::websocket::WebSocketFrame;
+use websocket::frame::WebSocketFrame;
 
-// Create frames
-let text_frame = WebSocketFrame::Text("Hello".to_string());
-let ping_frame = WebSocketFrame::Ping(b"ping data".to_vec());
-let close_frame = WebSocketFrame::Close;
+// Build and serialize a frame (server-to-client frames are unmasked)
+let bytes = WebSocketFrame::text("Hello").to_bytes();
 
-// Serialize to bytes
-let bytes = text_frame.to_bytes();
-
-// Parse from bytes
-if let Some(frame) = WebSocketFrame::parse(&bytes) {
-    match frame {
-        WebSocketFrame::Text(text) => println ! ("Received: {}", text),
-        WebSocketFrame::Close => println! ("Connection closing"),
-        _ => {}
-    }
+// Parsing expects client-to-server traffic: client frames must be
+// masked (RFC 6455 §5.3), unmasked input is rejected as a protocol error.
+match WebSocketFrame::parse(&wire_bytes) {
+    Ok((WebSocketFrame::Text(msg), consumed)) => println!("got: {msg}"),
+    Ok((WebSocketFrame::Close(info), _)) => println!("closing: {info:?}"),
+    Ok(_) => {}
+    Err(e) => eprintln!("frame error: {e:?}"),
 }
 ```
 
 ## Dependencies
 
-| Dependency  | Purpose                                 |
-| :---------: | --------------------------------------- |
-|   `tokio`   | Async runtime with full features        |
-|   `bytes`   | Byte manipulation utilities             |
-|  `base64`   | Base64 encoding for WebSocket handshake |
-|   `sha1`    | SHA1 hashing for WebSocket handshake    |
-| `thiserror` | Error handling macros                   |
+Kept deliberately small; versions are managed once in the workspace root.
 
-## Security Features
+| Dependency                       | Used by           | Purpose                                                         |
+| -------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `tokio`                          | all crates        | Async runtime (each crate opts into only the features it needs) |
+| `bytes`                          | websocket, server | Byte-buffer utilities for frame/request buffering               |
+| `thiserror`                      | all crates        | Derive macros for the per-crate error types                     |
+| `tracing` + `tracing-subscriber` | websocket, server | Structured, level-filtered logging                              |
+| `base64`, `sha1`                 | websocket         | `Sec-WebSocket-Accept` handshake computation                    |
+| `httpdate`                       | http              | IMF-fixdate formatting for the `Date` header                    |
 
-- Directory traversal protection (prevents access outside static directory)
-- Proper path canonicalization
-- Input validation for HTTP requests
-- WebSocket handshake validation
+## Security
 
-## Performance Characteristics
+Security is a stated goal of this project, and honesty about the current state
+is part of it. In place today: directory-traversal protection with path
+canonicalization, a 16 KB header-size cap, a 10 MB body-size cap, WebSocket
+masking enforcement, control-frame size limits and close-code validation.
 
-- Asynchronous I/O using `tokio`
-- Connection pooling through `tokio::spawn`
-- Zero-copy buffer management where possible
-- Efficient WebSocket frame parsing
+A full audit of the codebase (REFACTOR-PLAN.md §2) additionally documents every
+known weakness — including a request-body buffering bug (F1), missing read
+timeouts (F2) and unbounded WebSocket data frames (F5) — each with a severity,
+evidence, and a scheduled fix in the hardening phase. That phase turns every
+finding into a documented control with regression tests, plus fuzzing for the
+parsers. If you are evaluating this code, read the plan: it shows both the holes
+and exactly how they get closed.
 
-## Testing
+## Roadmap
 
-The project includes comprehensive tests:
+Tracked in detail in [REFACTOR-PLAN.md](REFACTOR-PLAN.md):
 
-- HTTP request/response parsing
-- WebSocket handshake validation
-- WebSocket frame serialization/deserialization
-- HTTP method and status code handling
-- Integration tests for both protocols
+- [x] **G1 — Workspace split** into `http` / `websocket` / `server` crates
+- [ ] **G2 — Documentation system**: architecture docs, ADRs, RFC compliance
+      matrices
+- [ ] **G3 — Security hardening**: timeouts and limits, request-smuggling fixes,
+      WebSocket message fragmentation/reassembly (RFC 6455 §5.4), security test
+      catalog, fuzzing
+- [ ] **G4 — Reproducible demos**: containers, benchmarks, attack-mitigation
+      demos
 
-## Future Improvements
-
-- [ ] HTTP/2 support
-- [ ] TLS/SSL support
-- [ ] WebSocket extensions (compression, etc.)
-- [ ] **WebSocket message fragmentation** - reassembly of fragmented messages
-- [ ] Request routing and middleware
-- [ ] Connection pooling and rate limiting
-- [x] ~~Logging and metrics~~ ✅ Implemented with `tracing`
-- [ ] Configuration file support
-- [x] ~~HTTP/1.1 Keep-Alive~~ ✅ Implemented
-- [x] ~~Chunked transfer encoding~~ ✅ Implemented
+Explicit non-goals for now: HTTP/2, TLS, WebSocket extensions
+(permessage-deflate) and compression — recorded as future work, not silently
+missing.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file
 for details.

@@ -5,7 +5,7 @@
     <title>HTTP</title>
 
     <script>
-        const socket = new WebSocket("ws://127.0.0.1:8080");
+        const socket = new WebSocket("ws://127.0.0.1:8000");
         socket.onopen = () => {
             console.log("Connected");
             socket.send("Hello, Rust!");

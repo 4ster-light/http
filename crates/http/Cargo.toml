@@ -9,7 +9,6 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-bytes.workspace = true
 httpdate.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["io-util", "net"] }
