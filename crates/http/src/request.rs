@@ -5,16 +5,30 @@ use crate::{
 use std::{collections::HashMap, fmt};
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
+/// HTTP request method (RFC 9110 §9).
+///
+/// Parsed case-insensitively via [`FromStr`](std::str::FromStr); unknown
+/// methods are rejected rather than silently mapped.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HttpMethod {
+    /// `GET`: retrieve a representation of the target resource.
     Get,
+    /// `POST`: process the enclosed representation according to the
+    /// resource's own semantics.
     Post,
+    /// `PUT`: replace the target resource's state with the enclosed one.
     Put,
+    /// `DELETE`: remove the target resource.
     Delete,
+    /// `HEAD`: like `GET`, but the server must not send a message body.
     Head,
+    /// `OPTIONS`: describe the communication options for the target resource.
     Options,
+    /// `PATCH`: apply partial modifications to the target resource.
     Patch,
+    /// `TRACE`: perform a message loop-back test along the request path.
     Trace,
+    /// `CONNECT`: establish a tunnel to the server identified by the target.
     Connect,
 }
 
@@ -53,16 +67,39 @@ impl std::str::FromStr for HttpMethod {
     }
 }
 
+/// A parsed HTTP/1.1 request: request line, headers, and (optionally) body.
+///
+/// Produced by [`HttpRequest::from_buffer`] (reads the body from the socket
+/// when `Content-Length` or chunked `Transfer-Encoding` is present) or by
+/// [`HttpRequest::from_buffer_sync`] for header-only parsing in tests.
 #[derive(Debug, Clone)]
 pub struct HttpRequest {
+    /// The request method.
     pub method: HttpMethod,
+    /// The raw request target (path and query), exactly as received.
     pub path: String,
+    /// The HTTP version token from the request line (e.g. `"HTTP/1.1"`).
     pub version: String,
+    /// Header fields with lower-cased names, so lookups via
+    /// [`HttpRequest::get_header`] are case-insensitive (RFC 9110 §5.1).
     pub headers: HashMap<String, String>,
+    /// The message body; empty when the request carries none or when parsed
+    /// with [`HttpRequest::from_buffer_sync`].
     pub body: Vec<u8>,
 }
 
 impl HttpRequest {
+    /// Parses the request line and headers from `buffer`, then reads the body
+    /// from `socket` when the headers indicate one (`Content-Length` or
+    /// chunked `Transfer-Encoding`).
+    ///
+    /// Bodies larger than 10 MiB are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidHttpRequest`] for a malformed request line, an
+    /// unsupported method, an invalid `Content-Length`, or an oversized body.
+    /// Returns [`Error::Io`] if reading the body from the socket fails.
     pub async fn from_buffer(buffer: &[u8], socket: &mut TcpStream) -> Result<Self> {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
@@ -129,7 +166,15 @@ impl HttpRequest {
         })
     }
 
-    /// Parse a complete HTTP request (headers only, no body) - for testing
+    /// Parses the request line and headers without touching a socket.
+    ///
+    /// The body is always empty; intended for tests and for callers that read
+    /// bodies separately.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidHttpRequest`] for a malformed request line or
+    /// an unsupported method.
     pub fn from_buffer_sync(buffer: &[u8]) -> Result<Self> {
         let request_str = String::from_utf8_lossy(buffer);
         let lines: Vec<&str> = request_str.lines().collect();
@@ -171,6 +216,9 @@ impl HttpRequest {
         })
     }
 
+    /// Returns the value of the named header field, matched
+    /// case-insensitively (RFC 9110 §5.1).
+    #[must_use]
     pub fn get_header(&self, name: &str) -> Option<&String> {
         self.headers.get(&name.to_lowercase())
     }

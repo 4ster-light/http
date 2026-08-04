@@ -28,6 +28,8 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 # `missing_docs` turns on in Phase 2 (docs/), clippy pedantic review in Phase 5.
 [workspace.lints.rust]
 unsafe_code = "forbid"
+missing_docs = "deny" # ratcheted in Phase 2 (docs system)
 
 [workspace.lints.clippy]
-all = "deny"
+all = "deny"      # Phase 1 baseline
+pedantic = "deny" # ratcheted in Phase 2 (docs system)

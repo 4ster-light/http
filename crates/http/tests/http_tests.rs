@@ -1,3 +1,6 @@
+//! Integration tests for the `http` crate: request parsing, response
+//! building, method and status-code handling.
+
 use http::{
     request::{HttpMethod, HttpRequest},
     response::{HttpResponse, HttpStatusCode},

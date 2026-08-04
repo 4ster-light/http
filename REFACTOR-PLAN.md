@@ -21,9 +21,10 @@ goals drive this refactor:
    status).** Split the single crate into a Cargo workspace: `http` and
    `websocket` library crates (room for future crates like `tls`), plus a demo
    `server` binary crate.
-2. **G2 — Documentation system:** Replace the changelog-style `REFINEMENTS.md`
-   with a `docs/` tree a human wants to read: architecture docs, Architecture
-   Decision Records (ADRs), RFC compliance matrices, and security docs.
+2. **G2 — Documentation system:** ✅ **COMPLETE (2026-08-04, see §7 Phase 2
+   status).** Replace the changelog-style `REFINEMENTS.md` with a `docs/` tree a
+   human wants to read: architecture docs, Architecture Decision Records (ADRs),
+   RFC compliance matrices, and security docs.
 3. **G3 — Security as a documented strength:** A security test catalog where
    every test cites the attack/RFC section it covers, cross-referenced from the
    threat model. Fuzzing for the parsers.
@@ -398,6 +399,47 @@ Each phase is one PR. Phases are ordered so every PR is green and reviewable.
   before via `cargo run -p server`.
 
 ### Phase 2 — Documentation system (≈2–3 days)
+
+> **Status: ✅ COMPLETE — 2026-08-04**
+>
+> Validated exit criteria:
+>
+> - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` clean with
+>   `missing_docs = "deny"` ratcheted in `[workspace.lints.rust]`; every public
+>   item of both lib crates documented (93 doc gaps closed).
+> - `clippy::pedantic = "deny"` ratcheted alongside `all`; zero warnings
+>   workspace-wide (one justified `#[allow(clippy::match_same_arms)]` with
+>   explanatory comment in `websocket::frame::OpCode::from`).
+> - All 19 tests green (6 unit + 11 integration + 2 new doctests, which also
+>   validate the README/lib.rs examples — the WS one uses the RFC 6455 §5.7
+>   masked-frame vector).
+> - `docs/` tree complete: architecture, development, testing, benchmarking
+>   (methodology; results land Phase 4), protocols/{http,websocket},
+>   rfc-compliance/{http-1.1, websocket-rfc6455} (row-per-requirement, F1–F11
+>   marked honestly), security/{threat-model, controls, hardening, fuzzing},
+>   adr/0000–0005 (template + tokio + workspace-split + error-types + httpdate +
+>   generic-IO).
+> - REFINEMENTS.md distributed and deleted: decisions → ADRs, ASCII flow
+>   diagrams → `docs/protocols/`, changes + migration notes → CHANGELOG.md (Keep
+>   a Changelog).
+> - README rewritten with docs index, corrected test counts, matrix links.
+> - CI created (`.github/workflows/ci.yml`: fmt, clippy, tests, doc build,
+>   boot-and-curl smoke) — this also lands the Phase 0 CI artifact that had been
+>   deferred; the containerized e2e harness remains with Phase 4.
+>
+> Deviations/notes:
+>
+> - Plain markdown chosen over mdBook (zero tooling, renders natively on GitHub;
+>   tree stays mdBook-compatible). Recorded in docs/README.md.
+> - Directory naming follows §4.1 (`docs/rfc-compliance/`, `docs/adr/`) with the
+>   union of §4.1 and §7 file lists; ADR numbering merges §3.2's four ADRs into
+>   §4.1's scheme (0003=error-types, 0004=httpdate, 0005=generic-IO absorbing
+>   "bytes buffers"). §4.1's later ADRs (security-limits, keep-alive-policy,
+>   explicit-bind-port) will be numbered 0006+ as their Phase-3 decisions land.
+> - Behavior preserved (verified live): the only code changes were
+>   doc/lint-driven (no logic changes; `handle_post/options` became sync after
+>   `unused_async` + `unnecessary_wraps` fixes; cast-safety hardening in frame
+>   length arithmetic is semantics-preserving).
 
 - Create `docs/` tree per §4; write architecture docs with diagrams (keep the
   ASCII flow diagrams from REFINEMENTS — they're good).

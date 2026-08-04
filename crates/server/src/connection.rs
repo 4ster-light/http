@@ -24,10 +24,9 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
                     if buffer.is_empty() {
                         info!(?peer_addr, "Connection closed by client");
                         return Ok(());
-                    } else {
-                        error!(?peer_addr, "Connection closed unexpectedly during request");
-                        return Err(http::Error::InvalidHttpRequest("Incomplete request").into());
                     }
+                    error!(?peer_addr, "Connection closed unexpectedly during request");
+                    return Err(http::Error::InvalidHttpRequest("Incomplete request").into());
                 }
                 Ok(n) => {
                     buffer.extend_from_slice(&temp_buf[..n]);
@@ -51,8 +50,7 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
                         // Handle HTTP request
                         let should_close = request
                             .get_header("connection")
-                            .map(|v| v.to_lowercase() == "close")
-                            .unwrap_or(false);
+                            .is_some_and(|v| v.to_lowercase() == "close");
 
                         if let Err(e) =
                             handler::handle_http_request(&mut socket, request, config).await

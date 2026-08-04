@@ -1,3 +1,6 @@
+//! Demo server binary: static file serving, a POST echo endpoint, and
+//! WebSocket connections, wiring together the `http` and `websocket` crates.
+
 mod config;
 mod connection;
 mod error;

@@ -8,6 +8,17 @@ use tokio::{
 use tracing::{error, info, warn};
 
 /// Handles the WebSocket connection lifecycle with ping/pong support.
+///
+/// Completes the opening handshake for `websocket_key`, then runs the frame
+/// loop: text messages are echoed back prefixed with `"Echo: "`, binary
+/// messages are echoed as-is, pings are answered with pongs, and a close
+/// frame is answered before shutting down. A server-initiated ping is sent
+/// every 30 s; the connection is closed if no pong returns by the next tick.
+///
+/// # Errors
+///
+/// Returns [`Error`](crate::Error) if the handshake response cannot be built,
+/// if a socket read or write fails, or if a received frame fails to parse.
 pub async fn handle_websocket(mut socket: TcpStream, websocket_key: &str) -> Result<()> {
     let handshake_response = handshake::generate_accept(websocket_key)?;
     socket.write_all(&handshake_response).await?;
@@ -47,7 +58,7 @@ pub async fn handle_websocket(mut socket: TcpStream, websocket_key: &str) -> Res
                         match frame {
                             WebSocketFrame::Text(text) => {
                                 info!(?peer_addr, text = %text, "Received text frame");
-                                let response = WebSocketFrame::Text(format!("Echo: {}", text));
+                                let response = WebSocketFrame::Text(format!("Echo: {text}"));
                                 if let Err(e) = socket.write_all(&response.to_bytes()).await {
                                     error!(?peer_addr, error = ?e, "Failed to send response");
                                     break;
@@ -85,10 +96,8 @@ pub async fn handle_websocket(mut socket: TcpStream, websocket_key: &str) -> Res
                             }
                         }
                     }
-                    Ok(None) => {
-                        // Need more data, continue reading
-                        continue;
-                    }
+                    // Need more data; keep reading on the next loop turn.
+                    Ok(None) => {}
                     Err(e) => {
                         error!(?peer_addr, error = ?e, "Error reading frame");
                         break;
@@ -133,8 +142,7 @@ async fn read_frame(
             Ok(None)
         }
         Err(e) => Err(crate::error::Error::WebSocketError(format!(
-            "Parse error: {:?}",
-            e
+            "Parse error: {e:?}"
         ))),
     }
 }

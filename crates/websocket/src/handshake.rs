@@ -5,21 +5,28 @@ use sha1::{Digest, Sha1};
 
 const WEBSOCKET_MAGIC_STRING: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
+/// Checks whether an HTTP request is a valid WebSocket upgrade request
+/// (RFC 6455 §4.2.1).
+///
+/// Requires `Upgrade: websocket`, a `Connection` header listing `Upgrade`,
+/// and `Sec-WebSocket-Version: 13`. On success returns the value of
+/// `Sec-WebSocket-Key`, ready for [`generate_accept`].
+///
+/// Note: the key's *format* (base64 of 16 bytes) is not verified yet — that
+/// is known gap F11, scheduled for the hardening phase.
+#[must_use]
 pub fn is_websocket_request(request: &HttpRequest) -> Option<&String> {
     let is_upgrade = request
         .get_header("upgrade")
-        .map(|v| v.to_lowercase() == "websocket")
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_lowercase() == "websocket");
 
     let is_connection_upgrade = request
         .get_header("connection")
-        .map(|v| v.to_lowercase().contains("upgrade"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_lowercase().contains("upgrade"));
 
     let is_version_13 = request
         .get_header("sec-websocket-version")
-        .map(|v| v == "13")
-        .unwrap_or(false);
+        .is_some_and(|v| v == "13");
 
     let websocket_key = request.get_header("sec-websocket-key");
 
@@ -30,6 +37,15 @@ pub fn is_websocket_request(request: &HttpRequest) -> Option<&String> {
     }
 }
 
+/// Builds the serialized `101 Switching Protocols` response for a validated
+/// upgrade request, including the `Sec-WebSocket-Accept` digest.
+///
+/// The digest is `base64(sha1(key + magic))` per RFC 6455 §4.2.2.
+///
+/// # Errors
+///
+/// Currently infallible; returns [`Result`] so future validation (e.g. key
+/// format checks, see F11) does not break the API.
 pub fn generate_accept(websocket_key: &str) -> Result<Vec<u8>> {
     let accept_key = generate_accept_key(websocket_key);
 

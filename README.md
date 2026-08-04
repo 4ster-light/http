@@ -18,6 +18,7 @@ current code and the roadmap to address every finding.
   - [WebSocket (RFC 6455)](#websocket-rfc-6455)
   - [Engineering practices](#engineering-practices)
 - [Workspace layout](#workspace-layout)
+- [Documentation](#documentation)
 - [Usage](#usage)
   - [Running the server](#running-the-server)
   - [Tests, lints and docs](#tests-lints-and-docs)
@@ -45,6 +46,9 @@ current code and the roadmap to address every finding.
   protection
 - ✅ Header-size cap (16 KB) against header-bomb attacks
 
+Full requirement-by-requirement status:
+[docs/rfc-compliance/http-1.1.md](docs/rfc-compliance/http-1.1.md)
+
 ### WebSocket (RFC 6455)
 
 - ✅ Opening handshake (`Sec-WebSocket-Accept` computation per §4.2)
@@ -55,6 +59,9 @@ current code and the roadmap to address every finding.
 - ✅ Server-initiated ping/pong liveness checks with timeout
 - ✅ Clean close handshake with status codes and reasons
 
+Full requirement-by-requirement status:
+[docs/rfc-compliance/websocket-rfc6455.md](docs/rfc-compliance/websocket-rfc6455.md)
+
 ### Engineering practices
 
 - ✅ Cargo workspace: two protocol libraries + one demo binary (see below)
@@ -62,8 +69,9 @@ current code and the roadmap to address every finding.
 - ✅ Per-crate error types: `http::Error`, `websocket::Error`
 - ✅ Async/await throughout, one `tokio` task per connection
 - ✅ Structured logging with `tracing`
-- ✅ 17 tests (6 unit + 11 integration), clippy-clean with warnings denied
-  workspace-wide, `unsafe_code` forbidden
+- ✅ 19 tests (6 unit + 11 integration + 2 doctests), clippy-clean with
+  `all`/`pedantic` warnings denied workspace-wide, `missing_docs` denied,
+  `unsafe_code` forbidden
 
 ## Workspace layout
 
@@ -94,6 +102,25 @@ an HTTP upgrade) and `server → {http, websocket}`. No cycles, no shared "commo
 crate — each protocol crate carries only what it needs, so they can be read and
 reused independently.
 
+## Documentation
+
+The full documentation system lives in [`docs/`](docs/README.md):
+
+- [Architecture](docs/architecture.md) — crates, concurrency and error models,
+  request/connection lifecycles
+- RFC compliance matrices — [HTTP/1.1](docs/rfc-compliance/http-1.1.md) and
+  [WebSocket](docs/rfc-compliance/websocket-rfc6455.md), one row per RFC
+  requirement, honest ❌ rows included
+- Security — [threat model](docs/security/threat-model.md),
+  [controls catalog](docs/security/controls.md),
+  [hardening guide](docs/security/hardening.md)
+- Protocol deep-dives — [HTTP](docs/protocols/http.md),
+  [WebSocket](docs/protocols/websocket.md)
+- [Testing](docs/testing.md) · [Development](docs/development.md) ·
+  [Benchmarking](docs/benchmarking.md)
+- [ADRs](docs/adr/0001-async-runtime-tokio.md) — architecture decision records
+  (tokio, workspace split, error model, httpdate, generic IO)
+
 ## Usage
 
 ### Running the server
@@ -115,11 +142,14 @@ RUST_LOG=server=debug cargo run -p server
 ### Tests, lints and docs
 
 ```bash
-cargo test --workspace                    # all 17 tests
+cargo test --workspace                    # all 19 tests (incl. doctests)
 cargo test -p http                        # just one crate
-cargo clippy --workspace --all-targets    # warnings are denied
+cargo clippy --workspace --all-targets    # all + pedantic warnings denied
 cargo doc --workspace --open              # API documentation
 ```
+
+CI runs fmt, clippy, tests, a docs build and a boot-and-curl smoke test on every
+push — see [docs/development.md](docs/development.md).
 
 ### HTTP endpoints
 
@@ -225,8 +255,8 @@ and exactly how they get closed.
 Tracked in detail in [REFACTOR-PLAN.md](REFACTOR-PLAN.md):
 
 - [x] **G1 — Workspace split** into `http` / `websocket` / `server` crates
-- [ ] **G2 — Documentation system**: architecture docs, ADRs, RFC compliance
-      matrices
+- [x] **G2 — Documentation system**: architecture docs, ADRs, RFC compliance
+      matrices, rustdoc with `missing_docs` denied, docs built in CI
 - [ ] **G3 — Security hardening**: timeouts and limits, request-smuggling fixes,
       WebSocket message fragmentation/reassembly (RFC 6455 §5.4), security test
       catalog, fuzzing

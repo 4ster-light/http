@@ -17,7 +17,7 @@ impl Default for Config {
         };
 
         Self {
-            address: format!("127.0.0.1:{}", port),
+            address: format!("127.0.0.1:{port}"),
             // Resolved relative to this crate (not the process CWD) so the
             // server serves static files identically regardless of where
             // `cargo run -p server` is invoked from.

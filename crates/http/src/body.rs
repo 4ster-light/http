@@ -7,7 +7,17 @@
 use crate::error::{Error, Result};
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
-/// Read a chunked transfer-encoded body (RFC 7230 §4.1).
+/// Reads a chunked transfer-encoded body from the socket (RFC 7230 §4.1).
+///
+/// Decodes `chunk-size CRLF chunk-data CRLF … 0 CRLF CRLF` into the
+/// reassembled body. Individual chunks larger than 1 MiB and trailing data
+/// after the terminating chunk are rejected.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidHttpRequest`] for malformed chunk sizes, malformed
+/// chunk data, oversized chunks, or unexpected trailing data. Returns
+/// [`Error::Io`] if reading from the socket fails.
 pub(crate) async fn read_chunked_body(socket: &mut TcpStream) -> Result<Vec<u8>> {
     let mut body = Vec::new();
 

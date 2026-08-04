@@ -1,3 +1,6 @@
+//! Integration tests for the `websocket` crate: handshake validation and
+//! frame codec behavior.
+
 use http::request::{HttpMethod, HttpRequest};
 use std::collections::HashMap;
 use websocket::{frame::WebSocketFrame, handshake::is_websocket_request};
