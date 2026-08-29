@@ -1,4 +1,4 @@
-# NNNN — Short decision title
+# NNNN - Short decision title
 
 - **Status:** Proposed | Accepted | Accepted (implementation scheduled …) |
   Superseded by ADR-MMMM (link the superseding ADR when this happens)

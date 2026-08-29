@@ -4,7 +4,7 @@
 
 - Stable Rust (developed on 1.95), edition 2024.
 - No build scripts, no code generation, no nightly features.
-- Fuzzing (when it lands) will use `cargo-fuzz` on a pinned nightly — see
+- Fuzzing (when it lands) will use `cargo-fuzz` on a pinned nightly. See
   [security/fuzzing.md](security/fuzzing.md).
 
 ## Everyday commands
@@ -38,17 +38,17 @@ CI additionally compiles with `RUSTFLAGS="-D warnings"` and builds docs with
 
 ### Exceptions
 
-`#[allow]` is acceptable only with a justification comment explaining _why this
-instance is intentional_ — not to silence a category. Current example:
+`#[allow]` is acceptable only with a justification comment explaining why the
+instance is intentional, never to silence a category. Current example:
 `OpCode::from` maps reserved opcodes to `Close` and carries
 `#[allow(clippy::match_same_arms)]` with a comment, because the wildcard arm
 duplicating the `0x8` arm is deliberate.
 
 ## Documentation conventions
 
-- **rustdoc:** every public item is documented; RFC section references where
-  applicable; `# Errors` sections on `Result`-returning functions; doc examples
-  are compiled and run as tests.
+- **rustdoc:** every public item is documented, with RFC section references
+  where applicable, `# Errors` sections on `Result`-returning functions, and
+  doc examples compiled and run as tests.
 - **Markdown docs** (this tree): plain markdown, no build step. Relative links,
   always with the `.md` suffix so they work on GitHub.
 - **Compliance matrices** are tables, not prose; `❌` rows are the roadmap.
@@ -58,15 +58,15 @@ duplicating the `0x8` arm is deliberate.
 Live in [adr/](adr/). Format: [adr/0000-template.md](adr/0000-template.md)
 (Nygard). Rules:
 
-- One decision per ADR, ~1 page.
-- Immutable once **Accepted** — changes happen via a new ADR that supersedes the
-  old one (the old one's status becomes `Superseded by ADR-NNNN`).
+- One decision per ADR, at most a page.
+- Immutable once **Accepted**. Changes happen through a new ADR that supersedes
+  the old one (the old one's status becomes `Superseded by ADR-NNNN`).
 - Decisions that are made but not yet implemented get
   `Accepted (implementation scheduled …)`.
 
 ## Git conventions
 
-- Conventional-commit style subjects (`refactor:`, `docs:`, `feat:`, …).
+- Conventional-commit style subjects (`refactor:`, `docs:`, `feat:`, etc.).
 - Each refactor phase is one commit/PR; all gates green before commit.
 
 ## CI
