@@ -3,9 +3,10 @@
 ## Toolchain
 
 - Stable Rust (developed on 1.95), edition 2024.
-- No build scripts, no code generation, no nightly features.
-- Fuzzing (when it lands) will use `cargo-fuzz` on a pinned nightly. See
-  [security/fuzzing.md](security/fuzzing.md).
+- No build scripts, no code generation, no nightly features in the workspace
+  crates.
+- Fuzzing uses `cargo-fuzz` on a pinned nightly, isolated in the `fuzz/`
+  workspace. See [security/fuzzing.md](security/fuzzing.md).
 
 ## Everyday commands
 
@@ -71,7 +72,9 @@ Live in [adr/](adr/). Format: [adr/0000-template.md](adr/0000-template.md)
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and
+GitHub Actions (`.github/workflows/cqc.yml`) runs on every push to `main` and
 every PR: `fmt --check`, `clippy --workspace --all-targets`, `test --workspace`,
-`doc --workspace`, plus a boot-and-curl smoke test of the server binary. A full
-containerized end-to-end harness arrives with the demo/benchmark phase.
+`doc --workspace`, a boot-and-curl smoke test of the server binary (including
+the POST echo F1 regression probe), and a 60-second fuzz smoke per target with
+crash-artifact archiving. A full containerized end-to-end harness arrives with
+the demo/benchmark phase.

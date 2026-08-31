@@ -1,80 +1,73 @@
 # WebSocket protocol notes
 
-Deep-dive into the `websocket` crate. For the requirement-by-requirement status
-see
+Deep-dive into the `websocket` crate. For the requirement-by-requirement
+status see
 [../rfc-compliance/websocket-rfc6455.md](../rfc-compliance/websocket-rfc6455.md).
 
 ## Handshake
 
-`handshake::is_websocket_request` requires, per RFC 6455 §4.2.1:
+`handshake::validate_upgrade` implements the RFC 6455 §4.2.1 checks and
+returns one of three outcomes (SEC-WS-007, F11 fixed):
 
-- `Upgrade: websocket` (case-insensitive)
-- `Connection` containing `Upgrade` (case-insensitive substring)
-- `Sec-WebSocket-Version: 13`
+- `NotUpgrade`: no `Upgrade: websocket` header; the request is plain HTTP.
+- `Valid(&key)`: method is GET, version is HTTP/1.1+, `Upgrade: websocket`
+  and `Connection: Upgrade` are present, `Sec-WebSocket-Version` is 13, and
+  the `Sec-WebSocket-Key` decodes as base64 of exactly 16 bytes.
+- `Invalid(reason)`: an upgrade was attempted but failed validation. The
+  server answers `400` with the reason.
 
-It returns the `Sec-WebSocket-Key` value when all match.
-
-`handshake::generate_accept` answers with `101 Switching Protocols` and
-`Sec-WebSocket-Accept = base64(sha1(key + "258EAFA5-…85B11"))` (§4.2.2),
-verified against the RFC test vector.
-
-**Not yet validated (F11, scheduled as SEC-WS-007):** the method being `GET`,
-the HTTP version being at least 1.1, and the key format (base64 of 16 bytes).
-A request with a nonsense key currently gets a syntactically valid `101`.
+`handshake::generate_accept` answers a valid upgrade with `101 Switching
+Protocols` and `Sec-WebSocket-Accept = base64(sha1(key + "258EAFA5-…85B11"))`
+(§4.2.2), verified against the RFC test vector in unit tests and end-to-end.
 
 ## Frame codec (`frame`)
 
-`WebSocketFrame::parse(&[u8]) -> Result<(frame, consumed), ParseError>`:
+The codec works on raw frames: `Frame { fin, opcode, payload }`.
+
+`Frame::parse(&[u8], &Limits) -> Result<(Frame, consumed), ParseError>`:
 
 - Expects **client-to-server** traffic: unmasked input is rejected
-  (`UnmaskedClientFrame`, §5.3). `to_bytes()` does the opposite direction, so
-  server frames are unmasked with FIN set.
-- 7/16/64-bit payload lengths supported. Length bookkeeping is done in `u64`
-  and bounds-checked before any `usize` conversion, so a hostile 64-bit length
-  cannot truncate into a false "frame complete" on 32-bit targets.
-- Control frames with payloads over 125 bytes are rejected
-  (`ControlFrameTooLarge`, §5.5).
-- Text payloads are UTF-8 validated (`InvalidUtf8`).
-- Close codes are validated against the registered ranges
-  (`1000..=1003 | 1007..=1011 | 3000..=4999`); anything else gives
-  `InvalidCloseCode`.
-- Unknown/reserved opcodes are mapped to `Close`, so the connection layer
-  terminates the connection instead of desynchronizing the stream.
-
-### Known deviations
-
-- **F4 / SEC-WS-009:** fragmentation is not implemented. The FIN bit is not
-  tracked and continuation frames return `Incomplete`, so a fragmented message
-  hangs the connection. Reassembly lands in the security phase.
-- **F5 / SEC-WS-002:** no cap on data-frame payloads. A frame can declare an
-  enormous length and force buffering. Max payload with close code 1009
-  planned.
-- **F6 / SEC-WS-003:** RSV bits are ignored (they must be 0 without
-  extensions), and fragmented control frames are not detected (FIN ignored).
-- Parse errors currently end the TCP connection **without a close frame**;
-  sending 1002/1007 as appropriate is part of the controls catalog.
+  (`UnmaskedClientFrame`, §5.3) and answered with close 1002 (SEC-WS-001).
+- `to_bytes()` serializes server-to-client frames: unmasked, FIN set.
+- 7/16/64-bit payload lengths supported; a 64-bit length with the MSB set is
+  rejected (§5.2).
+- RSV bits must be 0 (no extension is negotiated); reserved opcodes are
+  rejected rather than silently mapped (SEC-WS-003, F6 fixed).
+- Control frames over 125 bytes (`ControlFrameTooLarge`) and fragmented
+  control frames are rejected (§5.5, SEC-WS-003/004).
+- A data frame announcing more than `Limits::max_frame_payload` (1 MiB
+  default) is rejected with `FrameTooLarge` on the announced length, before
+  any payload is buffered (SEC-WS-002, F5 fixed).
 
 ## Connection lifecycle (`connection::handle_websocket`)
 
 ```txt
-BytesMut buffer (persistent across reads)
+BytesMut buffer (persistent across reads; parsed before blocking on IO)
     ↓
-Read data from socket → Append to buffer
-    ↓
-Try to parse frame
-    ↓
-    ├─> Success: Remove consumed bytes, process frame
-    ├─> Incomplete: Continue reading more data
-    └─> Error: Close connection
+Read → parse one frame
+    ├─> Control frame → handle immediately (works mid-message)
+    │     ├─ Close → reply close, stop
+    │     ├─ Ping  → pong with same payload
+    │     └─ Pong  → clear liveness flag
+    ├─> Data frame (FIN=1) → validate + deliver
+    ├─> Data frame (FIN=0) → start/continue reassembly
+    │     └─ Continuation → append; on FIN validate + deliver
+    └─> Violation → close frame with the mapped code (1002/1007/1009)
 ```
 
-- Text is echoed back prefixed with `Echo:`; binary is echoed as-is.
-- Client ping gets a pong with the same payload; pong clears the liveness flag.
-- **Liveness:** a server ping every 30 s. If no pong arrives before the next
-  tick, the server sends a close frame with code **1002** ("Ping timeout") and
-  shuts down.
-- Close gets a reply close and a clean shutdown.
-- Incoming bytes buffer across reads; incomplete frames wait for more data.
-
-Timeouts are relative to the ping ticker, not to frame activity, so a fully
-silent client is dropped after at most about 60 s.
+- Text is echoed back prefixed with `Echo:`; binary is echoed as-is. Text is
+  UTF-8 validated on the whole reassembled message (§5.6, SEC-WS-005): a
+  failure sends close 1007.
+- Reassembly rules per §5.4 (SEC-WS-009, F4 fixed): a continuation without an
+  open message and a new data frame while a message is open both fail with
+  close 1002; the reassembled size is capped by
+  `Limits::max_message_bytes` (close 1009).
+- Every protocol failure produces a close frame with the mapped code (1002
+  protocol error, 1007 invalid UTF-8, 1009 too big) before the connection
+  ends, never a silent drop (F8 fixed).
+- **Liveness:** the first ping goes out one full interval (30 s) after the
+  handshake, not immediately (F10 fixed); a missed pong by the next tick
+  sends close 1002 ("Ping timeout") (SEC-WS-008). The behavior is pinned by
+  a paused-time test.
+- The loop is generic over `AsyncRead + AsyncWrite`, so tests drive it with
+  `tokio::io::duplex` and paused clocks without real sockets.

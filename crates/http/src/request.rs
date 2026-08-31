@@ -1,9 +1,16 @@
+//! Pure HTTP/1.1 request parsing (REFACTOR-PLAN.md §3.2 D2/D3).
+//!
+//! The parser operates on caller-managed buffers: it either returns the
+//! complete request plus the number of bytes consumed, or reports that more
+//! bytes are needed. No sockets, no async. This is what fixes F1 (discarded
+//! bytes) structurally and makes the parser fuzzable.
+
 use crate::{
-    body::read_chunked_body,
+    body::decode_chunked_body,
     error::{Error, Result},
+    limits::Limits,
 };
 use std::{collections::HashMap, fmt};
-use tokio::{io::AsyncReadExt, net::TcpStream};
 
 /// HTTP request method (RFC 9110 §9).
 ///
@@ -69,9 +76,7 @@ impl std::str::FromStr for HttpMethod {
 
 /// A parsed HTTP/1.1 request: request line, headers, and (optionally) body.
 ///
-/// Produced by [`HttpRequest::from_buffer`] (reads the body from the socket
-/// when `Content-Length` or chunked `Transfer-Encoding` is present) or by
-/// [`HttpRequest::from_buffer_sync`] for header-only parsing in tests.
+/// Produced by [`HttpRequest::parse`], a pure function over a byte buffer.
 #[derive(Debug, Clone)]
 pub struct HttpRequest {
     /// The request method.
@@ -80,140 +85,108 @@ pub struct HttpRequest {
     pub path: String,
     /// The HTTP version token from the request line (e.g. `"HTTP/1.1"`).
     pub version: String,
-    /// Header fields with lower-cased names, so lookups via
+    /// Header fields with lower-cased names; lookups via
     /// [`HttpRequest::get_header`] are case-insensitive (RFC 9110 §5.1).
+    /// Duplicate field lines are combined with `", "` (RFC 9110 §5.2).
     pub headers: HashMap<String, String>,
-    /// The message body; empty when the request carries none or when parsed
-    /// with [`HttpRequest::from_buffer_sync`].
+    /// The message body; empty when the request carries none.
     pub body: Vec<u8>,
 }
 
 impl HttpRequest {
-    /// Parses the request line and headers from `buffer`, then reads the body
-    /// from `socket` when the headers indicate one (`Content-Length` or
-    /// chunked `Transfer-Encoding`).
+    /// Attempts to parse a complete request from the front of `buffer`.
     ///
-    /// Bodies larger than 10 MiB are rejected.
+    /// Returns `Ok(None)` when the buffer does not yet hold the full request
+    /// (head or body incomplete). Returns `Ok(Some((request, consumed)))` on
+    /// success; the caller advances its buffer by `consumed`, keeping any
+    /// pipelined bytes (F1, SEC-HTTP-007).
+    ///
+    /// The head must end within [`Limits::max_head_bytes`] or the parse fails
+    /// with [`Error::HeadTooLarge`] so the caller can answer `431` instead of
+    /// buffering indefinitely (SEC-HTTP-001). Bodies larger than
+    /// [`Limits::max_body_bytes`] fail with [`Error::BodyTooLarge`] (413,
+    /// SEC-HTTP-004). Sending both `Content-Length` and `Transfer-Encoding` is
+    /// rejected per RFC 9112 §6.3 (SEC-HTTP-003).
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidHttpRequest`] for a malformed request line, an
-    /// unsupported method, an invalid `Content-Length`, or an oversized body.
-    /// Returns [`Error::Io`] if reading the body from the socket fails.
-    pub async fn from_buffer(buffer: &[u8], socket: &mut TcpStream) -> Result<Self> {
-        let request_str = String::from_utf8_lossy(buffer);
-        let lines: Vec<&str> = request_str.lines().collect();
-        if lines.is_empty() {
-            return Err(Error::InvalidHttpRequest("Empty request"));
-        }
-
-        // Parse request line
-        let request_line_parts: Vec<&str> = lines[0].split_whitespace().collect();
-        if request_line_parts.len() != 3 {
-            return Err(Error::InvalidHttpRequest("Invalid request line"));
-        }
-
-        let method = request_line_parts[0].parse::<HttpMethod>()?;
-        let path = request_line_parts[1].to_string();
-        let version = request_line_parts[2].to_string();
-
-        // Parse headers
-        let mut headers = HashMap::new();
-
-        for line in lines.iter().skip(1) {
-            if line.is_empty() {
-                break;
+    /// Returns [`Error::InvalidHttpRequest`] for a malformed request line,
+    /// unsupported method, malformed header, or framing violation.
+    /// [`Error::HeadTooLarge`] and [`Error::BodyTooLarge`] for limit
+    /// violations as described above.
+    pub fn parse(buffer: &[u8], limits: &Limits) -> Result<Option<(Self, usize)>> {
+        let Some(head_len) = find_head_end(buffer) else {
+            // No terminator yet: the head must still fit the limit, otherwise
+            // an attacker could keep the buffer growing forever (F8/SEC-HTTP-001).
+            if buffer.len() > limits.max_head_bytes {
+                return Err(Error::HeadTooLarge);
             }
-
-            if let Some(colon_pos) = line.find(':') {
-                let key = line[..colon_pos].trim().to_lowercase();
-                let value = line[colon_pos + 1..].trim().to_string();
-                headers.insert(key, value);
-            }
+            return Ok(None);
+        };
+        if head_len > limits.max_head_bytes {
+            return Err(Error::HeadTooLarge);
         }
 
-        // Parse body based on Content-Length or Transfer-Encoding
-        let body = if let Some(content_length) = headers.get("content-length") {
-            // Read body based on Content-Length
+        let (mut request, _) = parse_head(&buffer[..head_len])?;
+
+        // SEC-HTTP-003: Content-Length + Transfer-Encoding together is a
+        // request-smuggling vector; TE precedence per RFC 9112 §6.3 is to
+        // reject the message entirely.
+        let has_cl = request.headers.contains_key("content-length");
+        let has_te = request.headers.contains_key("transfer-encoding");
+        if has_cl && has_te {
+            return Err(Error::InvalidHttpRequest(
+                "Content-Length with Transfer-Encoding",
+            ));
+        }
+
+        if let Some(content_length) = request.headers.get("content-length") {
             let length: usize = content_length
                 .parse()
                 .map_err(|_| Error::InvalidHttpRequest("Invalid Content-Length"))?;
-
-            if length > 10 * 1024 * 1024 {
-                return Err(Error::InvalidHttpRequest("Body too large"));
+            if length > limits.max_body_bytes {
+                return Err(Error::BodyTooLarge);
             }
+            let body_start = head_len;
+            if buffer.len() - head_len < length {
+                return Ok(None);
+            }
+            request.body = buffer[body_start..body_start + length].to_vec();
+            return Ok(Some((request, head_len + length)));
+        }
 
-            let mut body = vec![0u8; length];
-            socket.read_exact(&mut body).await?;
-            body
-        } else if let Some(transfer_encoding) = headers.get("transfer-encoding") {
+        if let Some(transfer_encoding) = request.headers.get("transfer-encoding") {
             if transfer_encoding.to_lowercase().contains("chunked") {
-                // Decode chunked transfer encoding
-                read_chunked_body(socket).await?
-            } else {
-                Vec::new()
+                let Some((body, body_len)) =
+                    decode_chunked_body(&buffer[head_len..], limits.max_body_bytes)?
+                else {
+                    return Ok(None);
+                };
+                request.body = body;
+                return Ok(Some((request, head_len + body_len)));
             }
-        } else {
-            Vec::new()
-        };
+            // Non-chunked TE is a `400` (RFC 9112 §6.3 final encoding rule).
+            return Err(Error::InvalidHttpRequest("Unsupported Transfer-Encoding"));
+        }
 
-        Ok(Self {
-            method,
-            path,
-            version,
-            headers,
-            body,
-        })
+        // No body.
+        Ok(Some((request, head_len)))
     }
 
-    /// Parses the request line and headers without touching a socket.
-    ///
-    /// The body is always empty; intended for tests and for callers that read
-    /// bodies separately.
+    /// Parses a request head-only (no body) from a complete buffer; a
+    /// convenience for tests and for the WebSocket handshake, which never
+    /// has a body.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidHttpRequest`] for a malformed request line or
-    /// an unsupported method.
-    pub fn from_buffer_sync(buffer: &[u8]) -> Result<Self> {
-        let request_str = String::from_utf8_lossy(buffer);
-        let lines: Vec<&str> = request_str.lines().collect();
-        if lines.is_empty() {
-            return Err(Error::InvalidHttpRequest("Empty request"));
+    /// Same as [`HttpRequest::parse`], minus body failures; returns the parse
+    /// only if the input consumed exactly. This wrapper unwraps the
+    /// `Ok(Some(..))` result and discards the consumed count.
+    pub fn parse_head_only(buffer: &[u8]) -> Result<Self> {
+        match Self::parse(buffer, &Limits::default())? {
+            Some((request, _)) => Ok(request),
+            None => Err(Error::InvalidHttpRequest("Incomplete request")),
         }
-
-        // Parse request line
-        let request_line_parts: Vec<&str> = lines[0].split_whitespace().collect();
-        if request_line_parts.len() != 3 {
-            return Err(Error::InvalidHttpRequest("Invalid request line"));
-        }
-
-        let method = request_line_parts[0].parse::<HttpMethod>()?;
-        let path = request_line_parts[1].to_string();
-        let version = request_line_parts[2].to_string();
-
-        // Parse headers
-        let mut headers = HashMap::new();
-
-        for line in lines.iter().skip(1) {
-            if line.is_empty() {
-                break;
-            }
-
-            if let Some(colon_pos) = line.find(':') {
-                let key = line[..colon_pos].trim().to_lowercase();
-                let value = line[colon_pos + 1..].trim().to_string();
-                headers.insert(key, value);
-            }
-        }
-
-        Ok(Self {
-            method,
-            path,
-            version,
-            headers,
-            body: Vec::new(),
-        })
     }
 
     /// Returns the value of the named header field, matched
@@ -222,4 +195,90 @@ impl HttpRequest {
     pub fn get_header(&self, name: &str) -> Option<&String> {
         self.headers.get(&name.to_lowercase())
     }
+
+    /// Whether the connection must close after this request (RFC 9112 §9.3).
+    ///
+    /// HTTP/1.1 defaults to keep-alive unless `Connection: close`; HTTP/1.0
+    /// defaults to close unless `Connection: keep-alive` explicitly opts in
+    /// (fixes F7).
+    #[must_use]
+    pub fn should_close(&self) -> bool {
+        let connection = self.get_header("connection").map(|v| v.to_lowercase());
+        if self.version == "HTTP/1.0" {
+            !connection.is_some_and(|v| v.contains("keep-alive"))
+        } else {
+            connection.is_some_and(|v| v == "close")
+        }
+    }
+}
+
+/// Finds the position just past the first `\r\n\r\n` sequence. The caller's
+/// buffer is rescanned linearly per call, which is acceptable given the
+/// all-at-once buffer view and avoids stale offsets (see SEC-HTTP-001 cap).
+fn find_head_end(buffer: &[u8]) -> Option<usize> {
+    buffer
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|pos| pos + 4)
+}
+
+/// Parses the request line and header fields of a complete head.
+fn parse_head(head: &[u8]) -> Result<(HttpRequest, usize)> {
+    let head_text = std::str::from_utf8(head)
+        .map_err(|_| Error::InvalidHttpRequest("Head is not valid UTF-8"))?;
+    let mut lines = head_text.split("\r\n");
+
+    let request_line = lines
+        .next()
+        .filter(|line| !line.is_empty())
+        .ok_or(Error::InvalidHttpRequest("Empty request"))?;
+
+    let parts: Vec<&str> = request_line.split(' ').collect();
+    if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
+        return Err(Error::InvalidHttpRequest("Invalid request line"));
+    }
+
+    let method = parts[0].parse::<HttpMethod>()?;
+    let path = parts[1].to_string();
+    let version = parts[2].to_string();
+
+    // RFC 9112 §3: the version token must look like `HTTP/digit.digit`.
+    if !version.starts_with("HTTP/") {
+        return Err(Error::InvalidHttpRequest("Invalid HTTP version"));
+    }
+
+    let mut headers: HashMap<String, String> = HashMap::new();
+    for line in lines {
+        if line.is_empty() {
+            break;
+        }
+        let Some((name, value)) = line.split_once(':') else {
+            return Err(Error::InvalidHttpRequest("Malformed header line"));
+        };
+        let name = name.trim().to_lowercase();
+        let value = value.trim().to_string();
+        if name.is_empty() {
+            return Err(Error::InvalidHttpRequest("Empty header name"));
+        }
+        // RFC 9110 §5.2: a recipient MAY combine duplicate field lines into
+        // one comma-separated value.
+        headers
+            .entry(name)
+            .and_modify(|existing| {
+                existing.push_str(", ");
+                existing.push_str(&value);
+            })
+            .or_insert(value);
+    }
+
+    Ok((
+        HttpRequest {
+            method,
+            path,
+            version,
+            headers,
+            body: Vec::new(),
+        },
+        head.len(),
+    ))
 }

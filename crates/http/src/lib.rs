@@ -1,9 +1,10 @@
-//! HTTP/1.1 protocol primitives: request parsing, response building, and
-//! body readers.
+//! HTTP/1.1 protocol primitives: pure request parsing, response building,
+//! body decoding, limits, and a generic-IO connection reader.
 //!
-//! This crate is transport-agnostic at the parsing layer; the connection
-//! driver lives in the `server` crate until the planned generic-IO refactor
-//! lands (see REFACTOR-PLAN.md §3.2 D2/D3).
+//! Parsers are pure functions over byte buffers (REFACTOR-PLAN.md §3.2 D2);
+//! the only IO lives in [`connection`], which is generic over
+//! [`AsyncRead`](tokio::io::AsyncRead) so tests can drive it with
+//! `tokio::io::duplex`.
 //!
 //! # Example
 //!
@@ -16,11 +17,15 @@
 //! assert!(head.contains("content-length: 5\r\n"));
 //! ```
 
-/// HTTP message body readers (chunked transfer-encoding decoding).
+/// Message body decoding (chunked transfer-encoding).
 pub mod body;
-/// Error type for the HTTP protocol layer.
+/// Generic-IO request reading with a persistent, caller-owned buffer.
+pub mod connection;
+/// Error type for the HTTP protocol layer, with 4xx status mapping.
 pub mod error;
-/// HTTP request parsing: request line, headers, and body framing.
+/// Typed security limits (head/body caps, timeouts, keep-alive policy).
+pub mod limits;
+/// Pure HTTP request parsing: request line, headers, and body framing.
 pub mod request;
 /// HTTP response types and the response builder.
 pub mod response;

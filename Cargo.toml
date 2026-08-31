@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# The fuzz harnesses build with cargo-fuzz on nightly in their own workspace.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"

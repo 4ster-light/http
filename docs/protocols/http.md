@@ -6,29 +6,40 @@ requirement-by-requirement status see
 
 ## Request pipeline
 
-1. **Framing (server side).** Bytes accumulate in a `BytesMut` until `\r\n\r\n`
-   (`find_header_end`). If the head exceeds **16 KiB** the connection is
-   dropped; a `431` response is planned (SEC-HTTP-001).
-2. **Head parsing (`HttpRequest::from_buffer`).** The request line must be
-   exactly `METHOD SP target SP version`; the method is matched
+1. **Framing (pure).** `http::connection::read_request` owns a persistent
+   `BytesMut` for the whole connection. `HttpRequest::parse` scans the buffer
+   for the head terminator; a head past **16 KiB** fails with
+   `HeadTooLarge`, which the server answers with `431` (SEC-HTTP-001). The
+   buffer is never reset between requests, so pipelined bytes are preserved
+   (SEC-HTTP-007, F1 fixed).
+2. **Head parsing.** The request line must be exactly `METHOD SP target SP
+   version` with a well-formed version token; the method is matched
    case-insensitively against 9 known methods. Header names are lower-cased
-   into a `HashMap`, so `get_header` is case-insensitive per RFC 9110 §5.1.
-3. **Body framing.** If `Content-Length` is present, exactly that many bytes
-   are read (cap: **10 MiB**). Otherwise, if `Transfer-Encoding` contains
-   `chunked`, the body is decoded chunk by chunk. Otherwise the request has no
-   body.
+   into a `HashMap` (case-insensitive lookup, RFC 9110 §5.1); duplicate
+   field lines are comma-merged per RFC 9110 §5.2, which makes conflicting
+   `Content-Length` values fail closed.
+3. **Body framing.** Sending `Content-Length` and `Transfer-Encoding`
+   together is rejected outright (SEC-HTTP-003, RFC 9112 §6.3). A
+   `Content-Length` body is taken from the buffer (cap **10 MiB**, excess
+   gives `413`); chunked bodies are decoded by the pure
+   `body::decode_chunked_body` (extensions tolerated and ignored, trailers
+   rejected). `parse` returns `Ok(None)` until the full request is buffered,
+   so partial bodies simply wait for more bytes.
 
-### Known deviations in the pipeline
+## Read timeouts
 
-- **F1 (P0):** bytes already read past the header end are discarded instead of
-  feeding the body or the next request. This breaks pipelining and same-segment
-  POST bodies. Fixed by the buffer-ownership refactor (ADR-0005).
-- **F4:** when `Content-Length` and `Transfer-Encoding` are both present, the
-  `Content-Length` path wins, which is the opposite of RFC 9112 §6.3
-  precedence. Scheduled as SEC-HTTP-003.
-- Malformed requests (bad request line, oversized head, oversized body)
-  currently end the connection **without any response**; proper
-  `400`/`431`/`413` replies are part of the controls catalog.
+`read_request` applies `Limits::head_read_timeout` (10 s) once a partial
+request is in flight and the keep-alive idle timeout (5 s) when the buffer is
+empty (SEC-HTTP-002, SEC-HTTP-005, ADR-0007). A timeout on an empty buffer is
+a clean close; a timeout mid-request is an error the server reports before
+closing.
+
+## Error responses (F8 fixed)
+
+Every parse failure maps to a status through `http::Error::status()`:
+`InvalidHttpRequest` → 400, `HeadTooLarge` → 431, `BodyTooLarge` → 413, IO →
+500. `server::connection` writes that response (with `Connection: close`)
+before tearing down, so abuse attempts are visible to clients and logs.
 
 ## Chunked transfer-encoding
 
@@ -39,16 +50,18 @@ Read size bytes of data → Append to body
     ↓
 Read trailing \r\n
     ↓
-If size = 0 → Done
+If size = 0 → Done (empty terminator line required)
 Else → Loop back
 ```
 
-`body::read_chunked_body` decodes `size CRLF data CRLF … 0 CRLF CRLF`:
+`body::decode_chunked_body` decodes `size [;ext] CRLF data CRLF … 0 CRLF
+CRLF` from a byte slice and returns the body plus the consumed length:
 
 - Chunk size parsed as hex; anything else is an error.
-- Per-chunk cap of **1 MiB** (defense against absurd size declarations).
-- Any bytes after the terminating `0`-chunk (trailers) are rejected.
-- Chunk extensions (`;foo=bar`) are rejected as malformed.
+- Chunk extensions are tolerated and ignored (RFC 9112 §7.1.1).
+- The reassembled body is capped by `Limits::max_body_bytes` (`413`).
+- Trailer fields after the terminating chunk are rejected to keep framing
+  unambiguous.
 
 ## Response pipeline
 
@@ -56,60 +69,50 @@ Else → Loop back
 
 - `Date`: IMF-fixdate via `httpdate` (RFC 9110 §6.6.1).
 - `Server`: `http-rs/0.1.0`.
-- `Connection` / `Keep-Alive`: `keep-alive` with `timeout=5, max=100` is
-  advertised **only for 2xx responses**; everything else gets `close`.
+- `Connection` / `Keep-Alive`: keep-alive is advertised only for 2xx
+  responses; the handler derives the `Keep-Alive` parameters from the same
+  `Limits` the server enforces (timeout=5, max=100 by default).
 
-`with_body` sets `Content-Length` unless the caller already did.
-
-### Known deviations
-
-- **F3:** the advertised `timeout=5, max=100` is not enforced server-side, so
-  connections live as long as the client keeps them busy. Enforcement scheduled
-  as SEC-HTTP-005.
-- No chunked _responses_; every response body is length-delimited. That is
-  legal HTTP/1.1, just inflexible for streaming.
+`with_body` sets `Content-Length` unless the caller already did. Response
+bodies are always length-delimited (no chunked responses), which is legal
+HTTP/1.1.
 
 ## Keep-alive
 
 ```txt
 Client connects → Server accepts
     ↓
-┌─> Read headers until \r\n\r\n
+┌─> Read request from persistent buffer (timeouts per Limits)
 │   ↓
-│   Parse headers
+│   Parse + handle request
 │   ↓
-│   Read body (if Content-Length or chunked)
+│   Send response (Keep-Alive header from Limits)
 │   ↓
-│   Handle request
-│   ↓
-│   Send response with Connection: keep-alive
-│   ↓
-│   Check if Connection: close
-│   ↓
-└── Loop back if keep-alive
+│   Close if: client said close · HTTP/1.0 without opt-in ·
+│            request budget (max=100) exhausted · error occurred
+│
+└── Loop back otherwise
 ```
 
-The connection loop in `server::connection::handle_connection` repeats until
-the client closes, the client sends `Connection: close`, or an error occurs.
-There is no idle timeout and no max-requests counter yet (F3 above), and no
-read timeout at all (F2, scheduled as SEC-HTTP-002).
+The policy is defined in [ADR-0006](../adr/0006-security-limits.md) and
+[ADR-0007](../adr/0007-keep-alive-policy.md): idle timeout 5 s, head timeout
+10 s, 100 requests per connection, all matching what responses advertise.
 
 ## Static file serving (server handler)
 
 - `/` maps to `index.html`.
-- Paths are canonicalized and must stay under the canonical static directory
-  (directory-traversal protection).
-- **F10:** the file is then read via the non-canonicalized path, a TOCTOU
-  symlink race. Fix scheduled as SEC-HTTP-006 together with regression tests
-  for `..`, encoded variants, and symlink escapes.
+- The request target is percent-decoded first; decoding failures are a 400.
+- The path is canonicalized and must stay under the canonical static
+  directory; the file is read via the canonical path, closing the F10 TOCTOU
+  window (SEC-HTTP-006).
 - Content types come from a fixed extension table, defaulting to
   `application/octet-stream`.
 
 ## Method support
 
-| Method    | Behavior                                          |
-| --------- | ------------------------------------------------- |
-| `GET`     | Static file serving                               |
-| `POST`    | Echo endpoint (returns body as JSON), ⚠️ see F1   |
-| `OPTIONS` | Permissive CORS preflight                         |
+| Method    | Behavior                                           |
+| --------- | -------------------------------------------------- |
+| `GET`     | Static file serving                                |
+| `POST`    | Echo endpoint (returns body as JSON)               |
+| `OPTIONS` | Permissive CORS preflight                          |
 | others    | `405 Method Not Allowed` (incl. `HEAD`, `CONNECT`) |

@@ -5,36 +5,73 @@ use sha1::{Digest, Sha1};
 
 const WEBSOCKET_MAGIC_STRING: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-/// Checks whether an HTTP request is a valid WebSocket upgrade request
+/// The result of checking an HTTP request for a WebSocket upgrade
 /// (RFC 6455 §4.2.1).
+pub enum UpgradeCheck<'a> {
+    /// The request is not a WebSocket upgrade at all (no `Upgrade:
+    /// websocket`); route it as plain HTTP.
+    NotUpgrade,
+    /// The upgrade request passed full §4.2.1 validation; carries the
+    /// `Sec-WebSocket-Key` ready for [`generate_accept`].
+    Valid(&'a String),
+    /// An upgrade was attempted but failed validation (method not GET,
+    /// version below 1.1, missing/malformed key or headers). The server
+    /// should answer `400` (SEC-WS-007, F11).
+    Invalid(&'static str),
+}
+
+/// Checks an HTTP request for a WebSocket upgrade (RFC 6455 §4.2.1).
 ///
-/// Requires `Upgrade: websocket`, a `Connection` header listing `Upgrade`,
-/// and `Sec-WebSocket-Version: 13`. On success returns the value of
-/// `Sec-WebSocket-Key`, ready for [`generate_accept`].
-///
-/// Note: the key's *format* (base64 of 16 bytes) is not verified yet — that
-/// is known gap F11, scheduled for the hardening phase.
+/// Validation (SEC-WS-007): the method must be GET, the HTTP version must be
+/// 1.1 or later, `Upgrade: websocket` and `Connection: Upgrade` must be
+/// present, `Sec-WebSocket-Version` must be 13, and the
+/// `Sec-WebSocket-Key` must decode as base64 of exactly 16 bytes. Failing an
+/// upgrade header when no upgrade was requested is not an `Invalid` result;
+/// it is `NotUpgrade`.
 #[must_use]
-pub fn is_websocket_request(request: &HttpRequest) -> Option<&String> {
+pub fn validate_upgrade(request: &HttpRequest) -> UpgradeCheck<'_> {
     let is_upgrade = request
         .get_header("upgrade")
         .is_some_and(|v| v.to_lowercase() == "websocket");
-
-    let is_connection_upgrade = request
-        .get_header("connection")
-        .is_some_and(|v| v.to_lowercase().contains("upgrade"));
-
-    let is_version_13 = request
-        .get_header("sec-websocket-version")
-        .is_some_and(|v| v == "13");
-
-    let websocket_key = request.get_header("sec-websocket-key");
-
-    if is_upgrade && is_connection_upgrade && is_version_13 {
-        websocket_key
-    } else {
-        None
+    if !is_upgrade {
+        return UpgradeCheck::NotUpgrade;
     }
+
+    if request.method != http::request::HttpMethod::Get {
+        return UpgradeCheck::Invalid("Upgrade must use GET");
+    }
+    // RFC 9112 lexically-enough version check ("HTTP/1.1" and above).
+    let version_ok = request
+        .version
+        .strip_prefix("HTTP/")
+        .and_then(|rest| rest.parse::<f64>().ok())
+        .is_some_and(|v| v >= 1.1);
+    if !version_ok {
+        return UpgradeCheck::Invalid("Upgrade requires HTTP/1.1 or newer");
+    }
+    if !request
+        .get_header("connection")
+        .is_some_and(|v| v.to_lowercase().contains("upgrade"))
+    {
+        return UpgradeCheck::Invalid("Missing Connection: Upgrade");
+    }
+    if request
+        .get_header("sec-websocket-version")
+        .is_none_or(|v| v != "13")
+    {
+        return UpgradeCheck::Invalid("Sec-WebSocket-Version must be 13");
+    }
+    let Some(key) = request.get_header("sec-websocket-key") else {
+        return UpgradeCheck::Invalid("Missing Sec-WebSocket-Key");
+    };
+    let valid_key = general_purpose::STANDARD
+        .decode(key)
+        .is_ok_and(|decoded| decoded.len() == 16);
+    if !valid_key {
+        return UpgradeCheck::Invalid("Sec-WebSocket-Key must be base64 of 16 bytes");
+    }
+
+    UpgradeCheck::Valid(key)
 }
 
 /// Builds the serialized `101 Switching Protocols` response for a validated
@@ -44,8 +81,8 @@ pub fn is_websocket_request(request: &HttpRequest) -> Option<&String> {
 ///
 /// # Errors
 ///
-/// Currently infallible; returns [`Result`] so future validation (e.g. key
-/// format checks, see F11) does not break the API.
+/// Currently infallible; returns [`Result`] to keep caller error handling
+/// uniform.
 pub fn generate_accept(websocket_key: &str) -> Result<Vec<u8>> {
     let accept_key = generate_accept_key(websocket_key);
 
@@ -68,8 +105,30 @@ fn generate_accept_key(websocket_key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::request::HttpMethod;
+    use http::request::{HttpMethod, HttpRequest};
     use std::collections::HashMap;
+
+    fn request_with(headers: HashMap<String, String>) -> HttpRequest {
+        HttpRequest {
+            method: HttpMethod::Get,
+            path: "/".to_string(),
+            version: "HTTP/1.1".to_string(),
+            headers,
+            body: Vec::new(),
+        }
+    }
+
+    fn valid_headers() -> HashMap<String, String> {
+        let mut headers = HashMap::new();
+        headers.insert("connection".to_string(), "Upgrade".to_string());
+        headers.insert(
+            "sec-websocket-key".to_string(),
+            "dGhlIHNhbXBsZSBub25jZQ==".to_string(),
+        );
+        headers.insert("sec-websocket-version".to_string(), "13".to_string());
+        headers.insert("upgrade".to_string(), "websocket".to_string());
+        headers
+    }
 
     #[test]
     fn test_websocket_key_generation() {
@@ -80,42 +139,30 @@ mod tests {
     }
 
     #[test]
-    fn test_is_websocket_request_valid() {
-        let mut headers = HashMap::new();
-        headers.insert("upgrade".to_string(), "websocket".to_string());
-        headers.insert("connection".to_string(), "Upgrade".to_string());
-
-        let key = "test-key".to_string();
-        headers.insert("sec-websocket-key".to_string(), key.clone());
-        headers.insert("sec-websocket-version".to_string(), "13".to_string());
-
-        let request = HttpRequest {
-            method: HttpMethod::Get,
-            path: "/".to_string(),
-            version: "HTTP/1.1".to_string(),
-            headers,
-            body: Vec::new(),
-        };
-
-        assert_eq!(is_websocket_request(&request), Some(&key));
+    fn test_validate_upgrade_valid() {
+        let request = request_with(valid_headers());
+        assert!(matches!(validate_upgrade(&request), UpgradeCheck::Valid(_)));
     }
 
     #[test]
-    fn test_is_websocket_request_invalid() {
-        let mut headers = HashMap::new();
-        headers.insert("upgrade".to_string(), "http/1.1".to_string()); // Invalid
-        headers.insert("connection".to_string(), "keep-alive".to_string());
+    fn test_validate_upgrade_invalid_upgrade_header() {
+        let mut headers = valid_headers();
+        headers.insert("upgrade".to_string(), "http/1.1".to_string());
+        let request = request_with(headers);
+        assert!(matches!(
+            validate_upgrade(&request),
+            UpgradeCheck::NotUpgrade
+        ));
+    }
+
+    #[test]
+    fn test_validate_upgrade_rejects_bad_key() {
+        let mut headers = valid_headers();
         headers.insert("sec-websocket-key".to_string(), "test-key".to_string());
-        headers.insert("sec-websocket-version".to_string(), "13".to_string());
-
-        let request = HttpRequest {
-            method: HttpMethod::Get,
-            path: "/".to_string(),
-            version: "HTTP/1.1".to_string(),
-            headers,
-            body: Vec::new(),
-        };
-
-        assert_eq!(is_websocket_request(&request), None);
+        let request = request_with(headers);
+        assert!(matches!(
+            validate_upgrade(&request),
+            UpgradeCheck::Invalid(_)
+        ));
     }
 }

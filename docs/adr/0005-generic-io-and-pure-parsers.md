@@ -1,7 +1,6 @@
 # 0005 - Generic IO, pure parsers, single-owner buffers
 
-- **Status:** Accepted (implementation scheduled for the security phase,
-  Phase 3)
+- **Status:** Accepted (implemented in Phase 3)
 - **Date:** 2026-07-31 (plan decisions D2/D3; root fix for finding F1)
 
 ## Context
@@ -36,10 +35,15 @@ it), or redesigning IO ownership once.
 ## Consequences
 
 - F1 is fixed by construction: buffered bytes feed the body and any pipelined
-  next request.
+  next request. Verified by `sec_http_007_post_body_consumed_from_buffer`,
+  `sec_http_007_pipelined_requests_parse_in_sequence`, and the e2e pipelining
+  and POST tests over real sockets.
 - Deterministic tests: duplex IO plus `tokio::time::pause` give exact control
-  of bytes and time (required by SEC-HTTP-002 and SEC-WS-008).
-- Fuzz harnesses call the pure parsers directly.
-- This is the largest structural change in Phase 3 and gates most of the
-  security test catalog. It is decided now so Phase 3 is execution, not
-  design.
+  of bytes and time (used by SEC-HTTP-002 and SEC-WS-008 tests).
+- Fuzz harnesses call the pure parsers directly (see
+  [../security/fuzzing.md](../security/fuzzing.md)).
+- Implemented in Phase 3: `http::request::HttpRequest::parse` is a pure
+  function returning `Ok(Some((request, consumed)))` or `Ok(None)`;
+  `http::connection::read_request` is generic over `AsyncRead` and owns the
+  buffer externally; the WebSocket loop is generic over `AsyncRead +
+  AsyncWrite`.

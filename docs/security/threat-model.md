@@ -41,25 +41,30 @@ completely anonymous peer.
 
 ## Abuse cases → findings → controls
 
-| Abuse case                                              | Finding | Countermeasure                                                                      |
-| ------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
-| Drip-feed headers to hold tasks open (Slow-Loris)       | F2      | SEC-HTTP-002 (read timeouts)                                                        |
-| Declare huge header block                               | F8      | 16 KiB cap today; SEC-HTTP-001 adds a `431` response                                |
-| Send `Content-Length` and `Transfer-Encoding` together  | F4      | SEC-HTTP-003 (TE precedence / reject)                                               |
-| Pipeline requests or same-segment body to desync framing | F1     | SEC-HTTP-007 (buffer ownership, ADR-0005)                                           |
-| Hold keep-alive connections forever                     | F3      | SEC-HTTP-005 (idle timeout + max requests)                                          |
-| Huge `Content-Length` body                              |         | 10 MiB cap today; SEC-HTTP-004 adds a `413` response                                |
-| Path traversal (`..`, encoded, symlink)                 | F10     | Canonicalize + prefix check today; SEC-HTTP-006 reads the canonical path, with tests |
-| Declare giant WS frame to force buffering               | F5      | SEC-WS-002 (max payload, close 1009)                                                |
-| Unmasked client frames                                  |         | Enforced today; SEC-WS-001 adds close 1002 + test                                   |
-| Reserved opcode / RSV bits / fragmented control frame   | F6      | SEC-WS-003 (strict validation, close 1002)                                          |
-| Oversized control frame                                 |         | Enforced today; SEC-WS-004 adds boundary tests                                      |
-| Invalid UTF-8 text frames                               |         | Parse error today; SEC-WS-005 sends close 1007                                      |
-| Bogus close codes                                       |         | Table today; SEC-WS-006 sends close 1002 + test                                     |
-| Garbage handshake (wrong method, bad key)               | F11     | SEC-WS-007 (full §4.2.1 validation)                                                 |
-| Silent client that never responds to pings              |         | Liveness close 1002 today; SEC-WS-008 adds paused-time tests                        |
-| Fragmented-message abuse / control-frame interleave     | F4 (WS) | SEC-WS-009 (reassembly state machine)                                               |
-| Connection churn (open/close storms)                    |         | Not addressed yet; rate limiting is future work (see roadmap)                        |
+All Phase-3 controls are implemented and tested; the table records the
+abuse case, the finding it maps to, and the control + test that prove the
+mitigation. Test names live in `crates/*/tests/` (see
+[controls.md](controls.md) for the full list).
+
+| Abuse case                                              | Finding | Control (status)                                                                       |
+| ------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| Drip-feed headers to hold tasks open (Slow-Loris)       | F2      | SEC-HTTP-002, head read timeout (closed)                                                |
+| Declare huge header block                               | F8      | SEC-HTTP-001, 16 KiB cap with a 431 response (closed)                                   |
+| Send `Content-Length` and `Transfer-Encoding` together  | F4      | SEC-HTTP-003, reject the combination (closed)                                           |
+| Pipeline requests or same-segment body to desync framing | F1     | SEC-HTTP-007, connection-owned buffer (closed)                                          |
+| Hold keep-alive connections forever                     | F3      | SEC-HTTP-005, idle timeout + max requests (closed)                                      |
+| Huge `Content-Length` body                              |         | SEC-HTTP-004, 10 MiB cap with a 413 response (closed)                                   |
+| Path traversal (`..`, encoded, symlink)                 | F10     | SEC-HTTP-006, percent-decode + canonicalize + prefix check + canonical-path read (closed) |
+| Declare giant WS frame to force buffering               | F5      | SEC-WS-002, 1 MiB frame cap, close 1009 before buffering (closed)                       |
+| Unmasked client frames                                  |         | SEC-WS-001, close 1002 (closed)                                                          |
+| Reserved opcode / RSV bits / fragmented control frame   | F6      | SEC-WS-003, strict validation with close 1002 (closed)                                  |
+| Oversized control frame                                 |         | SEC-WS-004, close 1002 (closed)                                                          |
+| Invalid UTF-8 text frames                               |         | SEC-WS-005, close 1007 (closed)                                                          |
+| Bogus close codes                                       |         | SEC-WS-006, validation (closed)                                                          |
+| Garbage handshake (wrong method, bad key)               | F11     | SEC-WS-007, full §4.2.1 validation with 400 (closed)                                    |
+| Silent client that never responds to pings              |         | SEC-WS-008, liveness close 1002, paused-time test (closed)                              |
+| Fragmented-message abuse / control-frame interleave     | F4 (WS) | SEC-WS-009, reassembly state machine with strict state rules (closed)                   |
+| Connection churn (open/close storms)                    |         | Not addressed; rate limiting is future work (see roadmap)                               |
 
 ## Out of scope (for now)
 
@@ -67,5 +72,8 @@ completely anonymous peer.
   the server with a TLS proxy (see [hardening.md](hardening.md)).
 - **Application-level authn/authz.** The demo has no protected resources.
 - **HTTP request smuggling across intermediaries.** The server is modeled as
-  origin, not proxy. SEC-HTTP-003 still fixes the local CL/TE ambiguity.
+  origin, not proxy. SEC-HTTP-003 removes the local CL/TE ambiguity.
 - **Network-layer DoS** (SYN floods etc.). That sits below the application.
+- **`Host`/`Origin` header validation.** Recorded in the compliance matrices
+  as the remaining honest gap; not exploitable beyond request confusion in
+  the current single-tenant demo.

@@ -37,8 +37,8 @@ the roadmap.
 - [security/controls.md](security/controls.md): the SEC-HTTP-\* and SEC-WS-\*
   control catalog with implementation and test pointers.
 - [security/hardening.md](security/hardening.md): deployment hardening guide.
-- [security/fuzzing.md](security/fuzzing.md): fuzz harnesses and how to run
-  them (lands with the security phase).
+- [security/fuzzing.md](security/fuzzing.md): fuzz harnesses, corpora,
+  dictionaries, and how to run them.
 
 ## Benchmarking
 
@@ -56,7 +56,10 @@ Immutable, numbered, one decision each. See
 | [0002](adr/0002-workspace-split.md)             | Workspace split into http/websocket/server      | Accepted                                                   |
 | [0003](adr/0003-error-type-per-crate.md)        | Per-crate error types, no shared error crate    | Accepted                                                   |
 | [0004](adr/0004-httpdate-over-chrono.md)        | httpdate over chrono for the Date header        | Accepted                                                   |
-| [0005](adr/0005-generic-io-and-pure-parsers.md) | Generic IO + pure parsers, single-owner buffers | Accepted (implementation scheduled for the security phase) |
+| [0005](adr/0005-generic-io-and-pure-parsers.md) | Generic IO + pure parsers, single-owner buffers | Accepted (implemented in the security phase)               |
+| [0006](adr/0006-security-limits.md)             | Typed security limits per protocol crate        | Accepted                                                   |
+| [0007](adr/0007-keep-alive-policy.md)           | Keep-alive policy: enforce what is advertised   | Accepted                                                   |
+| [0008](adr/0008-explicit-bind-port.md)          | Explicit bind address, fail fast on conflict    | Accepted                                                   |
 
 Cross-references used throughout: `F1-F11` are audit findings,
 `SEC-HTTP-00x`/`SEC-WS-00x` are security controls, `D1-D8` are architecture

@@ -1,0 +1,32 @@
+[package]
+name = "http-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Self-contained workspace: the fuzz harnesses are built with cargo-fuzz on a
+# pinned nightly and are deliberately outside the main workspace graph.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+bytes = "1.10.1"
+http = { path = "../crates/http" }
+websocket = { path = "../crates/websocket" }
+
+[[bin]]
+name = "request_head_parse"
+path = "fuzz_targets/request_head_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frame_parse"
+path = "fuzz_targets/frame_parse.rs"
+test = false
+doc = false
+bench = false

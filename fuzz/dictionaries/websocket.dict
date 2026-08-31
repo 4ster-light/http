@@ -1,0 +1,13 @@
+# WebSocket frame tokens for libFuzzer (frame_parse target).
+# First-byte patterns: FIN|opcode (0x81 text, 0x82 binary, 0x88 close,
+# 0x89 ping, 0x8a pong), 0x80 fin-only, and length markers.
+"\x81"
+"\x82"
+"\x88"
+"\x89"
+"\x8a"
+"\x80"
+"\x7e"
+"\x7f"
+"\xff"
+"\x00"

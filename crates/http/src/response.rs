@@ -40,6 +40,12 @@ pub enum HttpStatusCode {
     NotFound = 404,
     /// `405 Method Not Allowed`: the method is not supported for this resource.
     MethodNotAllowed = 405,
+    /// `413 Payload Too Large`: the request body exceeded a server limit
+    /// (SEC-HTTP-004; RFC 9110 §15.5.14).
+    PayloadTooLarge = 413,
+    /// `431 Request Header Fields Too Large`: the request head exceeded a
+    /// server limit (SEC-HTTP-001; RFC 6585 §5).
+    RequestHeaderFieldsTooLarge = 431,
 
     // 5xx Server Error
     /// `500 Internal Server Error`: the server hit an unexpected condition.
@@ -69,6 +75,8 @@ impl fmt::Display for HttpStatusCode {
             HttpStatusCode::Forbidden => (403, "Forbidden"),
             HttpStatusCode::NotFound => (404, "Not Found"),
             HttpStatusCode::MethodNotAllowed => (405, "Method Not Allowed"),
+            HttpStatusCode::PayloadTooLarge => (413, "Payload Too Large"),
+            HttpStatusCode::RequestHeaderFieldsTooLarge => (431, "Request Header Fields Too Large"),
             HttpStatusCode::InternalServerError => (500, "Internal Server Error"),
             HttpStatusCode::NotImplemented => (501, "Not Implemented"),
             HttpStatusCode::BadGateway => (502, "Bad Gateway"),
@@ -103,6 +111,8 @@ impl HttpStatusCode {
             HttpStatusCode::Forbidden => "Forbidden",
             HttpStatusCode::NotFound => "Not Found",
             HttpStatusCode::MethodNotAllowed => "Method Not Allowed",
+            HttpStatusCode::PayloadTooLarge => "Payload Too Large",
+            HttpStatusCode::RequestHeaderFieldsTooLarge => "Request Header Fields Too Large",
             HttpStatusCode::InternalServerError => "Internal Server Error",
             HttpStatusCode::NotImplemented => "Not Implemented",
             HttpStatusCode::BadGateway => "Bad Gateway",
