@@ -41,22 +41,27 @@ fn spawn_server() -> TestServer {
     }
     let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
     let addr = format!("127.0.0.1:{port}");
-    let child = Command::new(env!("CARGO_BIN_EXE_server"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_server"))
         .env("SERVER_ADDR", &addr)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("server binary spawns");
-    let server = TestServer { child, addr };
 
-    // Wait for readiness (retry until the listener accepts).
-    for _ in 0..100 {
-        if TcpStream::connect(&server.addr).is_ok() {
-            return server;
+    // Wait for readiness (retry until the listener accepts). The deadline
+    // is generous because parallel test threads and busy machines slow
+    // process startup down; a server that exits early is reported at once
+    // instead of burning the whole deadline.
+    for _ in 0..500 {
+        if TcpStream::connect(&addr).is_ok() {
+            return TestServer { child, addr };
+        }
+        if let Ok(Some(status)) = child.try_wait() {
+            panic!("server on {addr} exited early with {status}");
         }
         sleep(Duration::from_millis(20));
     }
-    panic!("server did not become ready");
+    panic!("server did not become ready on {addr}");
 }
 
 fn connect(server: &TestServer) -> TcpStream {

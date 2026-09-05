@@ -84,7 +84,7 @@ pub fn validate_upgrade(request: &HttpRequest) -> UpgradeCheck<'_> {
 /// Currently infallible; returns [`Result`] to keep caller error handling
 /// uniform.
 pub fn generate_accept(websocket_key: &str) -> Result<Vec<u8>> {
-    let accept_key = generate_accept_key(websocket_key);
+    let accept_key = accept_key(websocket_key);
 
     let response = HttpResponse::switching_protocols()
         .with_header("upgrade", "websocket")
@@ -94,7 +94,15 @@ pub fn generate_accept(websocket_key: &str) -> Result<Vec<u8>> {
     Ok(response.to_bytes())
 }
 
-fn generate_accept_key(websocket_key: &str) -> String {
+/// Computes the `Sec-WebSocket-Accept` digest for a handshake key:
+/// `base64(sha1(key + magic))` per RFC 6455 §4.2.2.
+///
+/// Servers use this inside [`generate_accept`]; clients use it to verify the
+/// `Sec-WebSocket-Accept` response header (RFC 6455 §4.2.2: a client MUST
+/// fail the connection when the value does not match). See
+/// `examples/src/lib.rs` for the client-side usage.
+#[must_use]
+pub fn accept_key(websocket_key: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.update(websocket_key.as_bytes());
     hasher.update(WEBSOCKET_MAGIC_STRING.as_bytes());
@@ -135,7 +143,15 @@ mod tests {
         // Test vector from RFC 6455
         let key = "dGhlIHNhbXBsZSBub25jZQ==";
         let expected = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
-        assert_eq!(generate_accept_key(key), expected);
+        assert_eq!(accept_key(key), expected);
+    }
+
+    #[test]
+    fn test_generate_accept_builds_101_response() {
+        let response = generate_accept("dGhlIHNhbXBsZSBub25jZQ==").unwrap();
+        let text = String::from_utf8(response).unwrap();
+        assert!(text.starts_with("HTTP/1.1 101"));
+        assert!(text.contains("sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo="));
     }
 
     #[test]

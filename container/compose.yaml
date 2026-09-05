@@ -1,0 +1,84 @@
+# Reproducible demos for the http-rs workspace (G4): the defender and the
+# adversary live in one file, isolated on a private compose network.
+#
+#   podman compose -f container/compose.yaml up server
+#       → demo server on localhost:8080 (always-on profile)
+#
+#   podman compose -f container/compose.yaml --profile bench run --rm bench-http
+#   podman compose -f container/compose.yaml --profile bench run --rm bench-ws
+#       → one-off benchmark runs against `server`
+#
+#   podman compose -f container/compose.yaml --profile attack run --rm demo_header_bomb
+#       → one attack demo; prints EXPECTED vs OBSERVED and exits non-zero
+#         if the mitigation did not hold
+#
+# The attack services run stdlib-only Python against the pinned python image;
+# the scripts are bind-mounted read-only so they stay editable in the repo.
+
+name: http-demo
+
+services:
+  # The defender: the hardened demo server (always-on).
+  server:
+    build:
+      context: ..
+      dockerfile: container/Containerfile
+    image: localhost/http-demo:latest
+    ports:
+      - "8080:8080"
+
+  # --- bench profile ---------------------------------------------------------
+
+  # HTTP load generator (wrk), pinned image. Run with:
+  #   ... run --rm bench-http [extra wrk args]
+  bench-http:
+    profiles: ["bench"]
+    image: docker.io/williamyeh/wrk@sha256:78adc0d9d51a99e6759e702a08d03eaece81c890ffcc9790ef9e5b199d54f091
+    depends_on:
+      - server
+    # Default scenario: keep-alive, 4 threads, 100 connections, 10 s.
+    entrypoint: ["wrk", "-t4", "-c100", "-d10s", "--latency", "http://server:8080/"]
+
+  # WebSocket benchmark (ws_bench example, built by Containerfile.bench-ws).
+  # The image builds on demand, e.g.:
+  #   podman compose -f container/compose.yaml --profile bench build bench-ws
+  bench-ws:
+    profiles: ["bench"]
+    build:
+      context: ..
+      dockerfile: container/Containerfile.bench-ws
+    image: localhost/http-bench-ws:latest
+    depends_on:
+      - server
+
+  # --- attack profile --------------------------------------------------------
+
+  # SEC-HTTP-002: stalled request heads must be dropped with 400 (~12 s run).
+  demo_slowloris:
+    profiles: ["attack"]
+    image: docker.io/library/python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
+    depends_on:
+      - server
+    volumes:
+      - ./demos:/demos:ro,Z
+    command: ["python", "/demos/slowloris.py", "--addr", "server:8080"]
+
+  # SEC-HTTP-001: oversized request head must get 431.
+  demo_header_bomb:
+    profiles: ["attack"]
+    image: docker.io/library/python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
+    depends_on:
+      - server
+    volumes:
+      - ./demos:/demos:ro,Z
+    command: ["python", "/demos/header_bomb.py", "--addr", "server:8080"]
+
+  # SEC-WS-001: unmasked client frames must be answered with close 1002.
+  demo_unmasked_frames:
+    profiles: ["attack"]
+    image: docker.io/library/python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
+    depends_on:
+      - server
+    volumes:
+      - ./demos:/demos:ro,Z
+    command: ["python", "/demos/unmasked_frames.py", "--addr", "server:8080"]

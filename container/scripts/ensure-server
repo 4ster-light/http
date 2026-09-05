@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Ensures a demo server answers at HOST:PORT (default 127.0.0.1:8080).
+#
+# Used by the benchmark and demo recipes in the justfile (G4): when the
+# unreachable target is the compose default (localhost:8080), the
+# containerized server is started on the spot; any other unreachable target
+# fails with a hint. Exits 0 once something answers on the target.
+set -euo pipefail
+
+target="${1:-127.0.0.1:8080}"
+compose_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+probe() {
+    curl -sf -o /dev/null --max-time 2 "http://$target/"
+}
+
+if probe; then
+    exit 0
+fi
+
+case "$target" in
+    127.0.0.1:8080 | localhost:8080)
+        echo "no server on $target — starting the containerized demo server ..."
+        (cd "$compose_dir" && podman compose -f compose.yaml up -d server)
+        for _ in $(seq 1 60); do
+            if probe; then
+                echo "server ready on $target"
+                exit 0
+            fi
+            sleep 0.5
+        done
+        echo "error: containerized server did not become ready on $target" >&2
+        exit 1
+        ;;
+    *)
+        echo "error: nothing reachable at $target" >&2
+        echo "hint: 'just up' starts the containerized server (localhost:8080)," >&2
+        echo "      'just server' the native one (127.0.0.1:8000)" >&2
+        exit 1
+        ;;
+esac

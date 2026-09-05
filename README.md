@@ -14,7 +14,7 @@ the parsers are fuzzed in CI.
 ## Table of Contents
 
 - [Features](#features)
-  - [HTTP/1.1 (RFC 7230-7235)](#http11-rfc-72307235)
+  - [HTTP/1.1 (RFC 7230-7235)](#http11-rfc-7230-7235)
   - [WebSocket (RFC 6455)](#websocket-rfc-6455)
   - [Engineering practices](#engineering-practices)
 - [Workspace layout](#workspace-layout)
@@ -22,6 +22,7 @@ the parsers are fuzzed in CI.
 - [Usage](#usage)
   - [Running the server](#running-the-server)
   - [Tests, lints and docs](#tests-lints-and-docs)
+  - [Containers and demos](#containers-and-demos)
   - [HTTP endpoints](#http-endpoints)
   - [WebSocket endpoint](#websocket-endpoint)
 - [Trying it out](#trying-it-out)
@@ -88,6 +89,9 @@ Full requirement-by-requirement status:
 
 ```txt
 ├── Cargo.toml              # workspace root: shared deps + lints
+├── justfile                # task runner: test, lint, fuzz, image, bench, demo
+├── container/              # pinned multi-stage image + compose (bench/attack profiles)
+├── examples/               # client-side examples: ws_echo_client, ws_bench
 ├── fuzz/                   # cargo-fuzz harnesses (own workspace, nightly)
 └── crates/
     ├── http/               # HTTP/1.1 protocol library
@@ -137,7 +141,7 @@ The full documentation system lives in [`docs/`](docs/README.md):
   [Benchmarking](docs/benchmarking.md)
 - [ADRs](docs/adr/0001-async-runtime-tokio.md): architecture decision records
   (tokio, workspace split, error model, httpdate, generic IO, security limits,
-  keep-alive policy, explicit bind)
+  keep-alive policy, explicit bind, containerized demos)
 
 ## Usage
 
@@ -170,6 +174,26 @@ CI runs fmt, clippy, tests, a docs build, a boot-and-curl smoke test (including
 the POST echo regression probe) and 60-second fuzz smokes on every push. See
 [docs/development.md](docs/development.md).
 
+### Containers and demos
+
+Everything runs reproducibly with [Podman](https://podman.io) — defender and
+adversary in one compose file (ADR-0009):
+
+```bash
+just image                 # pinned multi-stage build (digest-pinned bases, --locked)
+just up                    # demo server on localhost:8080
+just bench                 # wrk keep-alive ON/OFF + ws_bench, recorded in docs/benchmarking.md
+just bench-http            # HTTP benchmark only (auto-starts the server)
+just bench-ws              # WebSocket benchmark only (auto-starts the server)
+just demo-container slowloris       # attack demos print EXPECTED vs OBSERVED
+just demo-container header_bomb
+just demo-container unmasked_frames
+```
+
+The attack scripts cite their control IDs (`SEC-HTTP-001/002`, `SEC-WS-001`)
+and exit non-zero if a mitigation does not hold. Results and methodology:
+[docs/benchmarking.md](docs/benchmarking.md).
+
 ### HTTP endpoints
 
 - `GET /`: serves `crates/server/static/index.html`
@@ -193,10 +217,12 @@ curl -i http://127.0.0.1:8000/
 curl -X POST http://127.0.0.1:8000/api/test -d "Hello, Server!"
 ```
 
-From a browser (already wired up in the served `index.html`):
+From a browser (already wired up in the served `index.html`, which connects
+back to whatever host and port served the page):
 
 ```javascript
-const socket = new WebSocket("ws://127.0.0.1:8000");
+const wsScheme = location.protocol === "https:" ? "wss:" : "ws:";
+const socket = new WebSocket(`${wsScheme}//${location.host}/`);
 socket.onopen = () => socket.send("Hello, Rust!");
 socket.onmessage = (e) => console.log("Received:", e.data);
 socket.onclose = (e) => console.log("Closed:", e.code, e.reason);
@@ -285,8 +311,9 @@ Tracked in detail in [REFACTOR-PLAN.md](REFACTOR-PLAN.md):
 - [x] **G3: Security hardening**: timeouts and limits, request-smuggling fixes,
       WebSocket message fragmentation/reassembly (RFC 6455 §5.4), security test
       catalog, fuzzing
-- [ ] **G4: Reproducible demos**: containers, benchmarks, attack-mitigation
-      demos
+- [x] **G4: Reproducible demos**: containers, benchmarks, attack-mitigation
+      demos ([docs/benchmarking.md](docs/benchmarking.md),
+      [ADR-0009](docs/adr/0009-containerized-demos-and-benchmarks.md))
 
 Explicit non-goals for now: HTTP/2, TLS, WebSocket extensions
 (permessage-deflate) and compression: recorded as future work, not silently

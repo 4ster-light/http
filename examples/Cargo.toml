@@ -1,0 +1,23 @@
+[package]
+name = "examples"
+description = "Runnable client examples: WebSocket echo client and WebSocket benchmark (G4)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+base64.workspace = true
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "time"] }
+websocket.workspace = true
+
+[[bin]]
+name = "ws_echo_client"
+path = "src/bin/ws_echo_client.rs"
+
+[[bin]]
+name = "ws_bench"
+path = "src/bin/ws_bench.rs"

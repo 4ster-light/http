@@ -22,6 +22,27 @@ cargo doc --workspace --open             # API docs
 
 `RUST_LOG=server=debug cargo run -p server` enables verbose logging.
 
+The repo also ships a `justfile` wrapping the common flows (G4):
+
+```bash
+just --list              # overview
+just test                # cargo test --workspace
+just lint                # fmt --check + clippy
+just docs                # cargo doc (missing_docs denied) and open
+just fuzz 60             # cargo-fuzz smoke run per target (needs nightly)
+just image               # build the pinned demo image
+just up / down           # containerized demo server on localhost:8080
+just bench               # containerized server + wrk (keep-alive ON/OFF) + ws_bench
+just bench-http          # wrk against localhost:8080 (auto-starts the server)
+just bench-ws            # ws_bench against localhost:8080 (auto-starts the server)
+just demo header_bomb    # run an attack demo natively against the server
+just demo-container slowloris   # ...or from the compose attack profile
+```
+
+See [benchmarking.md](benchmarking.md) for the recorded results and
+[ADR-0009](adr/0009-containerized-demos-and-benchmarks.md) for the container
+and demo decisions.
+
 ## Lint policy
 
 Enforced workspace-wide via `[workspace.lints]` in the root `Cargo.toml` and
@@ -76,5 +97,6 @@ GitHub Actions (`.github/workflows/cqc.yml`) runs on every push to `main` and
 every PR: `fmt --check`, `clippy --workspace --all-targets`, `test --workspace`,
 `doc --workspace`, a boot-and-curl smoke test of the server binary (including
 the POST echo F1 regression probe), and a 60-second fuzz smoke per target with
-crash-artifact archiving. A full containerized end-to-end harness arrives with
-the demo/benchmark phase.
+crash-artifact archiving. The container image, benchmarks and attack demos are
+reproducible locally with Podman (ADR-0009); a container-build CI job is on the
+polish-phase list.

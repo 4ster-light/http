@@ -1,0 +1,26 @@
+# Builder image for the `bench-ws` compose service (G4): compiles the
+# `ws_bench` example from the workspace and ships only that binary in a
+# slim runtime. Same pinning rules as container/Containerfile.
+#
+# Built on demand by: podman compose -f container/compose.yaml build bench-ws
+
+# --- build stage: pinned rust:1-bookworm -------------------------------------
+FROM docker.io/library/rust:1-bookworm@sha256:82150a52ec202c1b14d7817e14516c392bb7f5cfebd88f1ed531cb37ebd39922 AS build
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY examples ./examples
+
+RUN cargo build --release --locked -p examples --bin ws_bench
+
+# --- runtime stage: pinned debian:bookworm-slim ------------------------------
+FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+RUN useradd --uid 10002 --no-create-home --shell /usr/sbin/nologin app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /build/target/release/ws_bench /app/ws_bench
+USER 10002
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/ws_bench"]
+CMD ["--addr", "server:8080", "--connections", "50", "--messages", "500"]

@@ -40,10 +40,16 @@ the roadmap.
 - [security/fuzzing.md](security/fuzzing.md): fuzz harnesses, corpora,
   dictionaries, and how to run them.
 
-## Benchmarking
+## Benchmarking and demos
 
-- [benchmarking.md](benchmarking.md): methodology, environment, repro steps.
-  Results land with Phase 4.
+- [benchmarking.md](benchmarking.md): methodology, environment disclosure,
+  recorded results (HTTP keep-alive ON/OFF, WS echo/handshake), and one-command
+  repro steps.
+- `container/` (repo root): digest-pinned multi-stage Containerfile, compose
+  file with `server`/`bench`/`attack` profiles, and the attack demo scripts
+  (see ADR-0009).
+- `justfile` (repo root): `just test`, `lint`, `docs`, `fuzz`, `image`, `up`,
+  `bench`, `demo <name>`.
 
 ## Architecture Decision Records
 
@@ -60,6 +66,7 @@ Immutable, numbered, one decision each. See
 | [0006](adr/0006-security-limits.md)             | Typed security limits per protocol crate        | Accepted                                                   |
 | [0007](adr/0007-keep-alive-policy.md)           | Keep-alive policy: enforce what is advertised   | Accepted                                                   |
 | [0008](adr/0008-explicit-bind-port.md)          | Explicit bind address, fail fast on conflict    | Accepted                                                   |
+| [0009](adr/0009-containerized-demos-and-benchmarks.md) | Containerized demos, benchmarks, and attack scripts | Accepted                                   |
 
 Cross-references used throughout: `F1-F11` are audit findings,
 `SEC-HTTP-00x`/`SEC-WS-00x` are security controls, `D1-D8` are architecture

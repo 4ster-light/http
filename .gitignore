@@ -1,4 +1,8 @@
 /target
 /fuzz/target
 /fuzz/artifacts
+# Machine-generated corpus entries (hex-named files cargo-fuzz writes while
+# running) stay local. The curated, named seed files in fuzz/corpus/ are
+# tracked and keep working: gitignore rules never affect tracked files.
+/fuzz/corpus
 /Cargo.lock.bak

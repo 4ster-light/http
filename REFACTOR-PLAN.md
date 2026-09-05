@@ -530,6 +530,76 @@ complete (see the status block above).
 
 ### Phase 4 — Containers, benchmarks, demos (≈2–3 days)
 
+> **Status: ✅ COMPLETE — 2026-09-03 (pending review; uncommitted)**
+>
+> Validated exit criteria:
+>
+> - Clean-machine repro works end to end with Podman 5.8.4 rootless:
+>   `just image` builds the digest-pinned multi-stage image; `podman compose
+>   up -d server` serves `GET /` (200 from the bundled static files) and the
+>   POST echo endpoint on localhost:8080; `just demo-container <name>` runs
+>   each attack demo in the compose `attack` profile and all three print
+>   `VERDICT : PASS` (exit 0).
+> - Benchmarks recorded in `docs/benchmarking.md` with full environment
+>   disclosure (3 runs per scenario, median reported): HTTP keep-alive ON
+>   ~23.7k req/s vs OFF ~4.8k req/s (the headline ≈5× connection-reuse
+>   payoff validating F1/F3), light-concurrency p50 ~0.46 ms, WS echo
+>   ~66k messages/s (p50 ~1.3 ms), full handshakes ~5.6k/s. `just bench`
+>   reproduces the table; numbers are marked indicative, and the doc notes
+>   that absolute values drift between sessions while the scenario ratios
+>   stay stable.
+> - `just test`/`lint`/`docs` all green with the new `examples` member
+>   included (clippy `all` + `pedantic` denied, `missing_docs` denied,
+>   `RUSTDOCFLAGS="-D warnings"` clean); all workspace tests pass.
+>
+> Implementation notes:
+>
+> - Compose profiles per §6.1: `server` (always), `bench` (`bench-http` =
+>   pinned wrk image; `bench-ws` = `ws_bench` compiled by
+>   `container/Containerfile.bench-ws`), `attack` (three stdlib-Python demos
+>   bind-mounted read-only from `container/demos/`, pinned `python:3.12-alpine`).
+>   One-shot services are run with `podman compose run --rm <service>`.
+> - Attack demo scripts are honest about control scope: the slowloris demo
+>   stalls *past* the per-read head timeout because SEC-HTTP-002 is a
+>   per-read idle timeout (matches `sec_http_002_slowloris_head_read_times_out`);
+>   the unmasked-frames demo does a real handshake with §4.2.2 digest
+>   verification and shows both the positive control (masked frame echoed)
+>   and the attack (close 1002).
+> - Code changes (documented in ADR-0009, all small):
+>   `websocket::handshake::accept_key` made public so client examples can
+>   verify `Sec-WebSocket-Accept` (RFC 6455 §4.2.2 — clients MUST check);
+>   `STATIC_DIR` env override in `server::Config` (mirrors the `SERVER_ADDR`
+>   pattern of ADR-0008; needed because the compile-time static path does not
+>   exist in the runtime container); `examples` added to workspace members so
+>   `--locked` container builds resolve.
+> - The `websocket` crate stays server-only (no behavior change); the client
+>   half lives in `examples/src/lib.rs` as a ~120-line documented codec
+>   (mask on send, reject masked server frames per §5.1, verify the accept
+>   digest), which doubles as reading material next to the server codec.
+> - Review fixes (after a first manual pass): `just demo-container` now
+>   passes `--profile attack` to compose (services with profiles are
+>   otherwise invisible to `compose run`) and starts the server itself when
+>   localhost:8080 is not reachable; a `just clean` recipe force-removes
+>   stale `http-demo_*` containers/pods, and `up`/`bench` depend on it, so a
+>   previously wedged container cannot block startup ("container state
+>   improper"); `useradd` no longer uses `--system` with UID ≥ 1000, which
+>   removed the SYS_UID_MAX build warning; the runtime images use `tini` as
+>   PID 1 because a signal-handler-less server as PID 1 ignores SIGTERM
+>   (Linux PID-1 rule), which made every stop wait 10 s and end in SIGKILL —
+>   `compose down` went from ~11 s with a WARN to ~3 s, clean; generated
+>   fuzz-corpus entries are gitignored (curated seeds stay tracked).
+> - Review fixes (second pass): `bench-http` passed bare `host:port` to wrk,
+>   which rejects URLs without a scheme, and both bench recipes defaulted to
+>   port 8000 with nothing listening; they now normalize addresses, share
+>   `container/scripts/ensure-server` with the demo recipes, and auto-start
+>   the containerized server on the default target; the served demo page
+>   hardcoded `ws://127.0.0.1:8000` and so only worked against the native
+>   server — it now connects back to its own origin (`location.host`), which
+>   fixes the browser `1006` against the container; the e2e harness readiness
+>   wait was extended from 2 s to 10 s with an early-exit check after it
+>   flaked under container-benchmark load (three consecutive clean runs
+>   after the fix).
+
 - Containerfile + compose + profiles per §6; `ws_bench` example; attack demo
   scripts; `justfile`; `docs/benchmarking.md` with first measured results
   (keep-alive on/off comparison is the headline number — it validates the F3/F1

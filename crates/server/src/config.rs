@@ -7,7 +7,10 @@ pub struct Config {
     /// bind failure is fatal. `SERVER_ADDR` may override for tests and
     /// deployments.
     pub address: String,
-    /// Static file directory, resolved against this crate at compile time.
+    /// Static file directory. Defaults to this crate's `static/` directory
+    /// (resolved at compile time, not process CWD); `STATIC_DIR` overrides it
+    /// for containers and deployments, where the compile-time path does not
+    /// exist (ADR-0009).
     pub static_dir: String,
     /// Typed security limits for HTTP parsing and connection policy.
     pub limits: Limits,
@@ -18,10 +21,8 @@ impl Default for Config {
         let address = std::env::var("SERVER_ADDR").unwrap_or_else(|_| "127.0.0.1:8000".to_string());
         Self {
             address,
-            // Resolved relative to this crate (not the process CWD) so the
-            // server serves static files identically regardless of where
-            // `cargo run -p server` is invoked from.
-            static_dir: concat!(env!("CARGO_MANIFEST_DIR"), "/static").to_string(),
+            static_dir: std::env::var("STATIC_DIR")
+                .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/static").to_string()),
             limits: Limits::default(),
         }
     }

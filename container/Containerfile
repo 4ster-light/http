@@ -1,0 +1,54 @@
+# Multi-stage build for the demo server (G4): a pinned Rust builder and a
+# minimal non-root runtime with only the binary and the static files.
+#
+# Reproducibility rules (REFACTOR-PLAN.md §6.1):
+#   - base images pinned by digest (digests recorded 2026-09-03),
+#   - `Cargo.lock` committed at the repo root and built with `--locked`,
+#   - runtime image contains no toolchain, no sources, no shell scripts.
+#
+# Build:  podman build -f container/Containerfile -t localhost/http-demo:latest .
+# Run:    podman run --rm -p 8080:8080 localhost/http-demo:latest
+
+# --- build stage: pinned rust:1-bookworm -------------------------------------
+FROM docker.io/library/rust:1-bookworm@sha256:82150a52ec202c1b14d7817e14516c392bb7f5cfebd88f1ed531cb37ebd39922 AS build
+WORKDIR /build
+
+# Manifests first so dependency layers cache independently of source changes.
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY examples ./examples
+
+RUN cargo build --release --locked -p server
+
+# --- runtime stage: pinned debian:bookworm-slim ------------------------------
+FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+
+LABEL org.opencontainers.image.title="http-rs demo server"
+LABEL org.opencontainers.image.description="From-scratch HTTP/1.1 + WebSocket (RFC 6455) demo server"
+LABEL org.opencontainers.image.source="https://github.com/aster/http"
+
+# Non-root runtime user; no home directory, no shell. Fixed UID 10001
+# (a regular account, not --system: system UIDs end at 999 on Debian).
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+
+# An init process as PID 1: the server itself ignores SIGTERM when it runs
+# as PID 1 (Linux only delivers signals to PID 1 if a handler is installed),
+# which made every `podman stop` wait out the 10 s grace period and end in
+# SIGKILL. tini forwards the signal to the child and reaps it, so containers
+# stop in milliseconds under `podman stop`, compose down, and Ctrl-C.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /build/target/release/server /app/server
+COPY --from=build /build/crates/server/static /app/static
+
+# The demo server is configurable by environment (ADR-0008/ADR-0009):
+# inside a container it must bind a public interface and find its static
+# files at an absolute path.
+ENV SERVER_ADDR=0.0.0.0:8080 \
+    STATIC_DIR=/app/static
+
+USER 10001
+EXPOSE 8080
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/server"]

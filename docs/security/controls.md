@@ -47,3 +47,15 @@ Test names live in `crates/http/tests/security_http.rs`,
   match what the server advertises.
 - Fuzzing backs the parser invariants: see
   [fuzzing.md](fuzzing.md) for the harnesses that run in CI.
+
+## Live demos (G4)
+
+Three controls have runnable, human-visible demos under `container/demos/`
+(ADR-0009): they print EXPECTED vs OBSERVED and exit non-zero if the
+mitigation does not hold.
+
+| Demo                   | Control      | Run                                                  |
+| ---------------------- | ------------ | ---------------------------------------------------- |
+| `slowloris.py`         | SEC-HTTP-002 | `just demo slowloris` / `just demo-container slowloris` |
+| `header_bomb.py`       | SEC-HTTP-001 | `just demo header_bomb` / `just demo-container header_bomb` |
+| `unmasked_frames.py`   | SEC-WS-001   | `just demo unmasked_frames` / `just demo-container unmasked_frames` |

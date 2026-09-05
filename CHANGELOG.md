@@ -52,13 +52,41 @@ releases yet; the workspace crates are at `0.1.0` and evolve per the
     and protocol dictionaries under `fuzz/`.
   - ADRs 0006–0008; compliance matrices updated to the post-hardening state
     with per-row test links.
+- Reproducible demos and benchmarks (Phase 4, G4, ADR-0009):
+  - `container/Containerfile`: multi-stage build with digest-pinned
+    `rust:1-bookworm` and `debian:bookworm-slim`, `--locked` release build,
+    non-root runtime user, binary + static files only, with `tini` as PID 1
+    so containers stop instantly on SIGTERM (the server itself has no signal
+    handler; graceful shutdown stays future work).
+  - `container/compose.yaml` with profiles: `server` (always on), `bench`
+    (wrk HTTP benchmark, `ws_bench` WebSocket benchmark), and `attack`
+    (`demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames` — stdlib
+    Python scripts that print EXPECTED vs OBSERVED and exit non-zero when a
+    mitigation does not hold).
+  - `examples` workspace member with `ws_echo_client` (interactive client that
+    verifies the §4.2.2 accept digest) and `ws_bench` (echo and handshake
+    benchmarks with latency percentiles), plus a documented minimal client-side
+    frame codec (masked send, reject masked server frames).
+  - `justfile`: `test`, `lint`, `docs`, `fuzz`, `image`, `up`/`down`, `bench`,
+    `bench-http`, `bench-ws`, `demo`, `demo-container`. The bench and demo
+    recipes share `container/scripts/ensure-server`, which probes the target
+    address and starts the containerized server when needed, so one-command
+    runs work from a clean machine.
+  - `docs/benchmarking.md` results: keep-alive ON ~23.7k vs OFF ~4.8k req/s
+    (≈5× connection-reuse payoff), ~0.46 ms p50 at light concurrency, ~66k WS
+    echo messages/s, ~5.6k handshakes/s — with environment disclosure and
+    one-command repro steps.
+  - ADR-0009 (containerized demos and benchmarks).
+  - `websocket::handshake::accept_key` is public, so client implementations can
+    verify `Sec-WebSocket-Accept` (RFC 6455 §4.2.2); server behavior unchanged.
 
 ### Changed
 
 - `Date` header formatting switched from `chrono` to `httpdate`; emitted format
   unchanged (ADR-0004).
 - `Config::default().static_dir` resolves via `CARGO_MANIFEST_DIR`, so serving
-  works regardless of the process working directory.
+  works regardless of the process working directory; `STATIC_DIR` now overrides
+  it for containers and deployments (ADR-0009).
 - Tracing `EnvFilter` default renamed `http=info` → `server=info` to match the
   binary crate name.
 - Workspace lint policy: `unsafe_code` forbidden, `missing_docs` denied,

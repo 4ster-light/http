@@ -5,7 +5,11 @@
     <title>HTTP</title>
 
     <script>
-        const socket = new WebSocket("ws://127.0.0.1:8000");
+        // Connect back to the server that served this page, whatever its
+        // host and port are (native 127.0.0.1:8000, container 127.0.0.1:8080,
+        // or a remote deployment). ws:// on http pages, wss:// on https pages.
+        const wsScheme = location.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(`${wsScheme}//${location.host}/`);
         socket.onopen = () => {
             console.log("Connected");
             socket.send("Hello, Rust!");
