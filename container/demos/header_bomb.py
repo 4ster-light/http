@@ -19,9 +19,13 @@ OK, FAIL = "PASS", "FAIL"
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--addr", default="127.0.0.1:8000")
-    parser.add_argument("--size", type=int, default=20480,
-                        help="size of the oversized header value in bytes "
-                             "(default 20 KiB > 16 KiB cap)")
+    parser.add_argument(
+        "--size",
+        type=int,
+        default=20480,
+        help="size of the oversized header value in bytes "
+        "(default 20 KiB > 16 KiB cap)",
+    )
     args = parser.parse_args()
     host, port = args.addr.rsplit(":", 1)
 
@@ -29,12 +33,7 @@ def main() -> int:
     print(f"target={args.addr} header value={args.size} bytes (cap is 16 KiB)")
 
     bomb = b"A" * args.size
-    request = (
-        b"GET / HTTP/1.1\r\n"
-        b"Host: demo\r\n"
-        b"X-Bomb: " + bomb + b"\r\n"
-        b"\r\n"
-    )
+    request = b"GET / HTTP/1.1\r\nHost: demo\r\nX-Bomb: " + bomb + b"\r\n\r\n"
 
     try:
         with socket.create_connection((host, int(port)), timeout=5) as s:
@@ -49,8 +48,10 @@ def main() -> int:
         mitigated = False
 
     print()
-    print("EXPECTED: HTTP/1.1 431 Request Header Fields Too Large + close "
-          "(no silent drop, no unbounded buffering)")
+    print(
+        "EXPECTED: HTTP/1.1 431 Request Header Fields Too Large + close "
+        "(no silent drop, no unbounded buffering)"
+    )
     verdict = OK if mitigated else FAIL
     print(f"VERDICT : {verdict}")
     return 0 if verdict == OK else 1

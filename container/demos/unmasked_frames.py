@@ -57,8 +57,9 @@ def handshake(sock: socket.socket, host_header: str) -> None:
         raise ConnectionError(
             f"Sec-WebSocket-Accept mismatch (RFC 6455 §4.2.2): {accept!r} != {digest!r}"
         )
-    print(f"[control] handshake accepted; Sec-WebSocket-Accept verified "
-          f"(RFC 6455 §4.2.2)")
+    print(
+        "[control] handshake accepted; Sec-WebSocket-Accept verified (RFC 6455 §4.2.2)"
+    )
 
     if len(head) > head.index(b"\r\n\r\n") + 4:
         raise ConnectionError("unexpected bytes after 101 head")
@@ -66,6 +67,7 @@ def handshake(sock: socket.socket, host_header: str) -> None:
 
 def read_frame(sock: socket.socket):
     """Reads one server-to-client frame: returns (fin, opcode, payload)."""
+
     def need(n: int, buf: bytearray) -> None:
         while len(buf) < n:
             chunk = sock.recv(4096)
@@ -91,7 +93,7 @@ def read_frame(sock: socket.socket):
         length = int.from_bytes(buf[2:10], "big")
         offset = 10
     need(offset + length, buf)
-    return fin, opcode, bytes(buf[offset:offset + length])
+    return fin, opcode, bytes(buf[offset : offset + length])
 
 
 def text_frame(payload: bytes, mask: bytes | None) -> bytes:
@@ -132,16 +134,26 @@ def main() -> int:
         sock.sendall(text_frame(b"forged", mask=None))
         fin, opcode, payload = read_frame(sock)
         is_close = opcode == 0x8
-        code = int.from_bytes(payload[:2], "big") if is_close and len(payload) >= 2 else None
-        detail = f"close frame code={code}" if is_close else f"unexpected frame opcode={opcode} payload={payload!r}"
+        code = (
+            int.from_bytes(payload[:2], "big")
+            if is_close and len(payload) >= 2
+            else None
+        )
+        detail = (
+            f"close frame code={code}"
+            if is_close
+            else f"unexpected frame opcode={opcode} payload={payload!r}"
+        )
         print(f"OBSERVED: {detail}")
         mitigated = is_close and code == 1002
     finally:
         sock.close()
 
     print()
-    print("EXPECTED: masked frames echoed; unmasked frame answered with "
-          "close 1002 (protocol error), payload never processed")
+    print(
+        "EXPECTED: masked frames echoed; unmasked frame answered with "
+        "close 1002 (protocol error), payload never processed"
+    )
     verdict = OK if echoed and mitigated else FAIL
     print(f"VERDICT : {verdict}")
     return 0 if verdict == OK else 1

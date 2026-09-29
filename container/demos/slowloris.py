@@ -37,9 +37,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--addr", default="127.0.0.1:8000")
     parser.add_argument("--sockets", type=int, default=5)
-    parser.add_argument("--stall", type=float, default=12.0,
-                        help="seconds of silence; must exceed the server's "
-                             "head_read_timeout (default 10 s)")
+    parser.add_argument(
+        "--stall",
+        type=float,
+        default=12.0,
+        help="seconds of silence; must exceed the server's "
+        "head_read_timeout (default 10 s)",
+    )
     args = parser.parse_args()
     host, port = args.addr.rsplit(":", 1)
     addr = (host, int(port))
@@ -49,16 +53,20 @@ def main() -> int:
     print()
 
     control_ok = legit_get(addr)
-    print(f"[control] normal GET during attack window : "
-          f"{'200 OK' if control_ok else 'FAILED'}")
+    print(
+        f"[control] normal GET during attack window : "
+        f"{'200 OK' if control_ok else 'FAILED'}"
+    )
 
     sockets = []
     for i in range(args.sockets):
         s = socket.create_connection(addr, timeout=5)
         s.sendall(b"GET / HTTP/1.1\r\nHost: demo\r\n")  # incomplete head
         sockets.append(s)
-    print(f"[attack ] opened {len(sockets)} connections with incomplete heads; "
-          f"going silent for {args.stall}s ...")
+    print(
+        f"[attack ] opened {len(sockets)} connections with incomplete heads; "
+        f"going silent for {args.stall}s ..."
+    )
 
     time.sleep(args.stall)
 
@@ -73,7 +81,7 @@ def main() -> int:
                 results.append((i, "400 Bad Request"))
             else:
                 results.append((i, f"unexpected response: {data[:40]!r}"))
-        except socket.timeout:
+        except TimeoutError:
             results.append((i, "still open (server waited) — NOT dropped"))
         except OSError as e:
             results.append((i, f"connection error: {e}"))
@@ -88,10 +96,14 @@ def main() -> int:
     dropped = sum(1 for _, o in results if "400" in o or "closed" in o)
     attack_mitigated = dropped == len(sockets)
     print()
-    print("EXPECTED: every stalled connection dropped (400 + close) within "
-          "~head_read_timeout; normal traffic unaffected")
-    print(f"OBSERVED: {dropped}/{len(sockets)} dropped; "
-          f"normal GET {'worked' if control_ok else 'FAILED'}")
+    print(
+        "EXPECTED: every stalled connection dropped (400 + close) within "
+        "~head_read_timeout; normal traffic unaffected"
+    )
+    print(
+        f"OBSERVED: {dropped}/{len(sockets)} dropped; "
+        f"normal GET {'worked' if control_ok else 'FAILED'}"
+    )
     verdict = OK if attack_mitigated and control_ok else FAIL
     print(f"VERDICT : {verdict}")
     return 0 if verdict == OK else 1
