@@ -2,8 +2,8 @@
 //! handshake validation, and the connection lifecycle with fragmentation
 //! reassembly and ping/pong liveness.
 //!
-//! Depends on the `http` crate for the upgrade handshake (REFACTOR-PLAN.md
-//! §3.2 D1: dependency direction is `websocket → http`).
+//! Depends on the [`http`] crate for the upgrade handshake; the dependency
+//! direction is strictly `websocket → http`.
 //!
 //! # Example
 //!
@@ -25,6 +25,13 @@
 //! assert_eq!(frame.payload, b"Hello");
 //! assert_eq!(consumed, wire.len());
 //! ```
+//!
+//! # Documentation map
+//!
+//! - Protocol deep-dive: `docs/protocols/websocket.md`
+//! - RFC 6455 compliance matrix: `docs/rfc-compliance/websocket-rfc6455.md`
+//! - Design decisions: the ADRs under `docs/adr/`, notably ADR-0005 (generic
+//!   IO + pure parsers) and ADR-0006 (typed limits)
 
 /// Connection lifecycle: echo behavior, liveness ping/pong, fragmentation
 /// reassembly, and the close handshake over generic IO.

@@ -15,7 +15,7 @@
 //!     [--addr 127.0.0.1:8000] [--mode echo|handshake] \
 //!     [--connections 100] [--messages 1000] [--size 64]`
 //!
-//! This binary is also used by the `bench-ws` compose service (G4), which
+//! This binary is also used by the `bench-ws` compose service (ADR-0009), which
 //! runs it against the containerized server.
 
 use std::{

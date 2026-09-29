@@ -1,6 +1,6 @@
 [package]
 name = "examples"
-description = "Runnable client examples: WebSocket echo client and WebSocket benchmark (G4)"
+description = "Runnable client examples: WebSocket echo client and WebSocket benchmark (ADR-0009)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

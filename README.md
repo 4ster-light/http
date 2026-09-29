@@ -1,4 +1,16 @@
+<div align="center">
+
 # HTTP & WebSockets in Rust
+
+[![CI](https://github.com/4ster-light/http/actions/workflows/cqc.yml/badge.svg?branch=main&event=push)](https://github.com/4ster-light/http/actions/workflows/cqc.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Unsafe code: forbidden](https://img.shields.io/badge/unsafe-forbidden-red)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/4ster-light)
+[![Other sponsorship options](https://img.shields.io/badge/Other%20Sponsorship%20options-%204ster.dev-blue)](https://4ster.dev/sponsor)
+
+</div>
+
+<br />
 
 A from-scratch implementation of HTTP/1.1 and WebSocket (RFC 6455) protocols in
 Rust, built on `tokio`. This is a learning and portfolio project with a
@@ -7,9 +19,10 @@ work, but to understand them deeply enough to document compliance honestly and
 to prove, with tests, that the server holds up under attack.
 
 The code is organized as a Cargo workspace of small, single-purpose crates. The
-security audit and hardening program in [REFACTOR-PLAN.md](REFACTOR-PLAN.md) is
-complete: every finding now has a documented control with regression tests, and
-the parsers are fuzzed in CI.
+security audit and hardening program is complete: every finding now has a
+documented control with regression tests
+([docs/security/controls.md](docs/security/controls.md)), and the parsers are
+fuzzed in CI.
 
 ## Table of Contents
 
@@ -151,9 +164,9 @@ The full documentation system lives in [`docs/`](docs/README.md):
 cargo run -p server
 ```
 
-The demo server starts on <http://127.0.0.1:8000>. The bind address is
-explicit (ADR-0008): set `SERVER_ADDR` to change it, and a taken port fails
-startup rather than drifting to another one.
+The demo server starts on <http://127.0.0.1:8000>. The bind address is explicit
+(ADR-0008): set `SERVER_ADDR` to change it, and a taken port fails startup
+rather than drifting to another one.
 
 Enable detailed logging with `RUST_LOG`:
 
@@ -171,7 +184,8 @@ cargo doc --workspace --open              # API documentation
 ```
 
 CI runs fmt, clippy, tests, a docs build, a boot-and-curl smoke test (including
-the POST echo regression probe) and 60-second fuzz smokes on every push. See
+the POST echo regression probe), a containerized build-and-smoke test and
+60-second fuzz smokes on every push. See
 [docs/development.md](docs/development.md).
 
 ### Containers and demos
@@ -190,8 +204,8 @@ just demo-container header_bomb
 just demo-container unmasked_frames
 ```
 
-The attack scripts cite their control IDs (`SEC-HTTP-001/002`, `SEC-WS-001`)
-and exit non-zero if a mitigation does not hold. Results and methodology:
+The attack scripts cite their control IDs (`SEC-HTTP-001/002`, `SEC-WS-001`) and
+exit non-zero if a mitigation does not hold. Results and methodology:
 [docs/benchmarking.md](docs/benchmarking.md).
 
 ### HTTP endpoints
@@ -217,8 +231,8 @@ curl -i http://127.0.0.1:8000/
 curl -X POST http://127.0.0.1:8000/api/test -d "Hello, Server!"
 ```
 
-From a browser (already wired up in the served `index.html`, which connects
-back to whatever host and port served the page):
+From a browser (already wired up in the served `index.html`, which connects back
+to whatever host and port served the page):
 
 ```javascript
 const wsScheme = location.protocol === "https:" ? "wss:" : "ws:";
@@ -285,14 +299,14 @@ Kept deliberately small; versions are managed once in the workspace root.
 ## Security
 
 Security is a stated goal of this project, and honesty about the current state
-is part of it. The hardening phase (G3) is complete; in place today:
+is part of it. The hardening work is complete; in place today:
 
 typed limits per protocol crate (head 16 KiB → `431`, body 10 MiB → `413`, WS
-frame 1 MiB → close 1009), read timeouts against Slow-Loris, enforced
-keep-alive (idle timeout, request budget, HTTP/1.0 semantics), CL/TE conflict
-rejection, canonicalized path handling with canonical-path reads, strict
-WebSocket frame validation with close codes 1002/1007/1009, full §4.2.1
-handshake validation, and complete §5.4 fragmentation/reassembly.
+frame 1 MiB → close 1009), read timeouts against Slow-Loris, enforced keep-alive
+(idle timeout, request budget, HTTP/1.0 semantics), CL/TE conflict rejection,
+canonicalized path handling with canonical-path reads, strict WebSocket frame
+validation with close codes 1002/1007/1009, full §4.2.1 handshake validation,
+and complete §5.4 fragmentation/reassembly.
 
 Every control carries an ID (`SEC-HTTP-003`, `SEC-WS-009`) in
 [docs/security/controls.md](docs/security/controls.md) with implementation and
@@ -303,21 +317,28 @@ out-of-scope features explicitly.
 
 ## Roadmap
 
-Tracked in detail in [REFACTOR-PLAN.md](REFACTOR-PLAN.md):
+The refactor program that shaped this repo (workspace split, documentation
+system, security hardening, reproducible demos) is complete; the decisions are
+recorded in the [ADRs](docs/adr/) and the controls in
+[docs/security/controls.md](docs/security/controls.md).
 
-- [x] **G1: Workspace split** into `http` / `websocket` / `server` crates
-- [x] **G2: Documentation system**: architecture docs, ADRs, RFC compliance
+Delivered milestones:
+
+- [x] **Workspace split** into `http` / `websocket` / `server` crates
+- [x] **Documentation system**: architecture docs, ADRs, RFC compliance
       matrices, rustdoc with `missing_docs` denied, docs built in CI
-- [x] **G3: Security hardening**: timeouts and limits, request-smuggling fixes,
+- [x] **Security hardening**: timeouts and limits, request-smuggling fixes,
       WebSocket message fragmentation/reassembly (RFC 6455 §5.4), security test
       catalog, fuzzing
-- [x] **G4: Reproducible demos**: containers, benchmarks, attack-mitigation
-      demos ([docs/benchmarking.md](docs/benchmarking.md),
+- [x] **Reproducible demos**: containers, benchmarks, attack-mitigation demos
+      ([docs/benchmarking.md](docs/benchmarking.md),
       [ADR-0009](docs/adr/0009-containerized-demos-and-benchmarks.md))
 
-Explicit non-goals for now: HTTP/2, TLS, WebSocket extensions
-(permessage-deflate) and compression: recorded as future work, not silently
-missing.
+Explicit non-goals for now, recorded as future work rather than silently
+missing: HTTP/2, TLS, WebSocket extensions (permessage-deflate), response
+compression, a routing/middleware framework, rate limiting beyond the
+connection-level limits, and graceful-shutdown draining (the server has no
+signal handler; containers rely on `tini` and process death).
 
 ## License
 

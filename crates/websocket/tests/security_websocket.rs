@@ -1,4 +1,5 @@
-//! Security test catalog for the `websocket` crate (REFACTOR-PLAN.md §5.2).
+//! Security test catalog for the `websocket` crate, indexed row-by-row in
+//! `docs/security/controls.md` with the corresponding control IDs.
 //!
 //! Every test carries its control ID and RFC section in the name and doc
 //! comment; `docs/security/controls.md` links back to these names.

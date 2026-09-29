@@ -1,8 +1,8 @@
 //! HTTP/1.1 protocol primitives: pure request parsing, response building,
 //! body decoding, limits, and a generic-IO connection reader.
 //!
-//! Parsers are pure functions over byte buffers (REFACTOR-PLAN.md §3.2 D2);
-//! the only IO lives in [`connection`], which is generic over
+//! Parsers are pure functions over byte buffers (ADR-0005); the only IO
+//! lives in [`connection`], which is generic over
 //! [`AsyncRead`](tokio::io::AsyncRead) so tests can drive it with
 //! `tokio::io::duplex`.
 //!
@@ -16,6 +16,14 @@
 //! assert!(head.starts_with("HTTP/1.1 200 OK\r\n"));
 //! assert!(head.contains("content-length: 5\r\n"));
 //! ```
+//!
+//! # Documentation map
+//!
+//! - Architecture overview: `docs/architecture.md`
+//! - Protocol deep-dives: `docs/protocols/http.md`
+//! - RFC 9110/9112 compliance matrix: `docs/rfc-compliance/http-1.1.md`
+//! - Design decisions: the ADRs under `docs/adr/` (long-form context behind
+//!   each module's doc comment)
 
 /// Message body decoding (chunked transfer-encoding).
 pub mod body;

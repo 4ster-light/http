@@ -112,3 +112,44 @@ jobs:
           name: fuzz-crashes
           path: fuzz/artifacts
           if-no-files-found: ignore
+
+  container:
+    name: container build + smoke test
+    runs-on: ubuntu-latest
+    needs: gates
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (pinned multi-stage Containerfile)
+        run: podman build -f container/Containerfile -t localhost/http-demo:latest .
+
+      - name: Boot and probe
+        run: |
+          podman run -d --name demo -p 8080:8080 localhost/http-demo:latest
+
+          # Wait for the server to accept connections (max 10 s).
+          code=""
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)
+            [ "$code" = "200" ] && break
+            sleep 0.5
+          done
+          [ "$code" = "200" ] || { echo "GET / -> $code, expected 200"; podman logs demo; exit 1; }
+
+          # 404 handling
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/definitely-missing)
+          [ "$code" = "404" ] || { echo "GET /definitely-missing -> $code, expected 404"; exit 1; }
+
+          # WebSocket upgrade handshake (RFC 6455 test vector key)
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+            -H 'Sec-WebSocket-Version: 13' \
+            -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+            http://127.0.0.1:8080/)
+          [ "$code" = "101" ] || { echo "WS upgrade -> $code, expected 101"; exit 1; }
+
+          echo "container smoke test passed"
+
+      - name: Stop container
+        if: always()
+        run: podman stop -t 5 demo 2>/dev/null || true

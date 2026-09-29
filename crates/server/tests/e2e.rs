@@ -8,7 +8,6 @@ use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     process::{Child, Command, Stdio},
-    sync::atomic::{AtomicU16, Ordering},
     thread::sleep,
     time::Duration,
 };
@@ -26,42 +25,56 @@ impl Drop for TestServer {
     }
 }
 
-/// Base port for this test process; tests take sequential ports from here
-/// so parallel tests never collide on a bind.
-static NEXT_PORT: AtomicU16 = AtomicU16::new(0);
-
+/// Ephemeral port allocator for this test process; tests take sequential
+/// ports from here so parallel tests within the process never collide on a
+/// bind.
 fn spawn_server() -> TestServer {
-    if NEXT_PORT.load(Ordering::SeqCst) == 0 {
+    for attempt in 0..3 {
+        // Fresh ephemeral port per attempt: the kernel never hands out a
+        // port that is still bound, and the server fail-fasts on a taken
+        // port (ADR-0008) — the retry below covers the rare race with an
+        // unrelated process grabbing the port between the probe and the
+        // server's bind.
         let port = TcpListener::bind("127.0.0.1:0")
             .unwrap()
             .local_addr()
             .unwrap()
             .port();
-        NEXT_PORT.store(port, Ordering::SeqCst);
-    }
-    let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
-    let addr = format!("127.0.0.1:{port}");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_server"))
-        .env("SERVER_ADDR", &addr)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("server binary spawns");
+        let addr = format!("127.0.0.1:{port}");
+        let mut child = Command::new(env!("CARGO_BIN_EXE_server"))
+            .env("SERVER_ADDR", &addr)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("server binary spawns");
 
-    // Wait for readiness (retry until the listener accepts). The deadline
-    // is generous because parallel test threads and busy machines slow
-    // process startup down; a server that exits early is reported at once
-    // instead of burning the whole deadline.
-    for _ in 0..500 {
-        if TcpStream::connect(&addr).is_ok() {
-            return TestServer { child, addr };
+        // Wait for readiness (retry until the listener accepts). The deadline
+        // is generous because parallel test threads and busy machines slow
+        // process startup down; a server that exits early is reported at once
+        // instead of burning the whole deadline.
+        for _ in 0..500 {
+            if TcpStream::connect(&addr).is_ok() {
+                return TestServer { child, addr };
+            }
+            if let Ok(Some(status)) = child.try_wait() {
+                // The server fail-fasts on a taken port (ADR-0008). The port
+                // probe above closes its listener before the server binds,
+                // so another process occasionally wins that race. That is a
+                // test-harness allocation race, not a server bug; retry on a
+                // fresh port instead of masking the failure with a shared
+                // port. A deterministic breakage (bad static path, ...) also
+                // exits early and will still panic on the last attempt.
+                if attempt < 2 {
+                    break;
+                }
+                panic!("server on {addr} exited early with {status}");
+            }
+            sleep(Duration::from_millis(20));
         }
-        if let Ok(Some(status)) = child.try_wait() {
-            panic!("server on {addr} exited early with {status}");
-        }
-        sleep(Duration::from_millis(20));
+        // Deadline reached (or a retry is in flight): don't leak the process.
+        let _ = child.kill();
     }
-    panic!("server did not become ready on {addr}");
+    panic!("server did not become ready within its readiness deadline");
 }
 
 fn connect(server: &TestServer) -> TcpStream {

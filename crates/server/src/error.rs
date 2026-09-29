@@ -1,6 +1,6 @@
 //! Application-level error type: aggregates the protocol crate errors
 //! (`http::Error`, `websocket::Error`) plus server-specific failures
-//! (REFACTOR-PLAN.md §3.2 D5).
+//! (ADR-0003).
 
 use thiserror::Error;
 

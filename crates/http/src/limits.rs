@@ -1,4 +1,4 @@
-//! Typed security limits for the HTTP layer (REFACTOR-PLAN.md §3.2 D4).
+//! Typed security limits for the HTTP layer (ADR-0006).
 //!
 //! One struct carrying every security knob, passed explicitly by the caller.
 //! Defaults match what responses advertise in the `Keep-Alive` header.

@@ -2,31 +2,30 @@
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). There are no versioned
-releases yet; the workspace crates are at `0.1.0` and evolve per the
-[refactor plan](REFACTOR-PLAN.md).
+releases yet; the workspace crates are at `0.1.0` and the architecture is
+recorded in the [ADRs](docs/adr/).
 
 ## [Unreleased]
 
 ### Added
 
 - Cargo workspace: `http` and `websocket` libraries plus the `server` demo
-  binary (Phase 1, ADR-0002). Dependency direction is strictly
-  `websocket → http`.
+  binary (ADR-0002). Dependency direction is strictly `websocket → http`.
 - Per-crate error types: `http::Error`, `websocket::Error`,
   `server::ServerError` (ADR-0003).
 - `http::body` module holding the chunked transfer-encoding reader.
-- Full documentation system under `docs/` (Phase 2): architecture, development,
-  testing and benchmarking docs, protocol deep-dives, RFC 9110/9112 and RFC 6455
+- Full documentation system under `docs/`: architecture, development, testing
+  and benchmarking docs, protocol deep-dives, RFC 9110/9112 and RFC 6455
   compliance matrices, threat model, security controls catalog, hardening and
   fuzzing guides, and ADRs 0001–0008.
 - Doc-tested examples on both library crates.
 - CI: fmt, clippy, tests, docs build, a boot-and-curl smoke test of the server
-  binary (including the POST-echo F1 regression probe), and 60-second fuzz
-  smoke runs with crash-artifact archiving on every push and PR.
-- Security hardening (Phase 3, G3):
-  - Typed `Limits` per protocol crate (ADR-0006): head 16 KiB → `431`, body
-    10 MiB → `413`, head read timeout 10 s, keep-alive idle 5 s / max 100
-    requests, WS frame cap 1 MiB → close 1009, WS message cap, ping interval.
+  binary (including the POST-echo F1 regression probe), and 60-second fuzz smoke
+  runs with crash-artifact archiving on every push and PR.
+- Security hardening (ADRs 0006–0008):
+  - Typed `Limits` per protocol crate (ADR-0006): head 16 KiB → `431`, body 10
+    MiB → `413`, head read timeout 10 s, keep-alive idle 5 s / max 100 requests,
+    WS frame cap 1 MiB → close 1009, WS message cap, ping interval.
   - Generic-IO connection layers with one persistent buffer per connection
     (ADR-0005): same-segment POST bodies and pipelined requests work; F1 (P0)
     closed.
@@ -35,31 +34,31 @@ releases yet; the workspace crates are at `0.1.0` and evolve per the
     `Content-Length`.
   - Proper protocol-level error responses: 400/431/413 for HTTP (F8), close
     1002/1007/1009 for WebSocket, instead of silent drops.
-  - Strict WebSocket frame validation: RSV bits, reserved opcodes, 64-bit
-    length MSB, fragmented control frames, control-frame size (F5/F6 closed).
-  - Full handshake validation: GET, HTTP/1.1+, base64-of-16-bytes key, with
-    400 on failure (F11 closed, SEC-WS-007).
+  - Strict WebSocket frame validation: RSV bits, reserved opcodes, 64-bit length
+    MSB, fragmented control frames, control-frame size (F5/F6 closed).
+  - Full handshake validation: GET, HTTP/1.1+, base64-of-16-bytes key, with 400
+    on failure (F11 closed, SEC-WS-007).
   - Complete RFC 6455 §5.4 fragmentation and reassembly with interleaved
     control-frame handling (SEC-WS-009): the last RFC 6455 compliance gap is
     closed.
-  - Keep-alive enforcement matching the advertised header (F3 closed,
-    ADR-0007) and read timeouts (Slow-Loris mitigation, F2 closed).
+  - Keep-alive enforcement matching the advertised header (F3 closed, ADR-0007)
+    and read timeouts (Slow-Loris mitigation, F2 closed).
   - Path-traversal hardening: percent-decode, canonicalize, prefix check,
     canonical-path read (F10 closed).
   - Security test catalog: 43 SEC-\*-named tests with control IDs and RFC
     references, plus 14 end-to-end tests against the real binary over TCP.
-  - Fuzz harnesses `request_head_parse` and `frame_parse` with seed corpora
-    and protocol dictionaries under `fuzz/`.
-  - ADRs 0006–0008; compliance matrices updated to the post-hardening state
-    with per-row test links.
-- Reproducible demos and benchmarks (Phase 4, G4, ADR-0009):
+  - Fuzz harnesses `request_head_parse` and `frame_parse` with seed corpora and
+    protocol dictionaries under `fuzz/`.
+  - ADRs 0006–0008; compliance matrices updated to the post-hardening state with
+    per-row test links.
+- Reproducible demos and benchmarks (ADR-0009):
   - `container/Containerfile`: multi-stage build with digest-pinned
     `rust:1-bookworm` and `debian:bookworm-slim`, `--locked` release build,
-    non-root runtime user, binary + static files only, with `tini` as PID 1
-    so containers stop instantly on SIGTERM (the server itself has no signal
+    non-root runtime user, binary + static files only, with `tini` as PID 1 so
+    containers stop instantly on SIGTERM (the server itself has no signal
     handler; graceful shutdown stays future work).
-  - `container/compose.yaml` with profiles: `server` (always on), `bench`
-    (wrk HTTP benchmark, `ws_bench` WebSocket benchmark), and `attack`
+  - `container/compose.yaml` with profiles: `server` (always on), `bench` (wrk
+    HTTP benchmark, `ws_bench` WebSocket benchmark), and `attack`
     (`demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames` — stdlib
     Python scripts that print EXPECTED vs OBSERVED and exit non-zero when a
     mitigation does not hold).
@@ -70,12 +69,12 @@ releases yet; the workspace crates are at `0.1.0` and evolve per the
   - `justfile`: `test`, `lint`, `docs`, `fuzz`, `image`, `up`/`down`, `bench`,
     `bench-http`, `bench-ws`, `demo`, `demo-container`. The bench and demo
     recipes share `container/scripts/ensure-server`, which probes the target
-    address and starts the containerized server when needed, so one-command
-    runs work from a clean machine.
-  - `docs/benchmarking.md` results: keep-alive ON ~23.7k vs OFF ~4.8k req/s
-    (≈5× connection-reuse payoff), ~0.46 ms p50 at light concurrency, ~66k WS
-    echo messages/s, ~5.6k handshakes/s — with environment disclosure and
-    one-command repro steps.
+    address and starts the containerized server when needed, so one-command runs
+    work from a clean machine.
+  - `docs/benchmarking.md` results: keep-alive ON ~23.7k vs OFF ~4.8k req/s (≈5×
+    connection-reuse payoff), ~0.46 ms p50 at light concurrency, ~66k WS echo
+    messages/s, ~5.6k handshakes/s — with environment disclosure and one-command
+    repro steps.
   - ADR-0009 (containerized demos and benchmarks).
   - `websocket::handshake::accept_key` is public, so client implementations can
     verify `Sec-WebSocket-Accept` (RFC 6455 §4.2.2); server behavior unchanged.
@@ -93,22 +92,33 @@ releases yet; the workspace crates are at `0.1.0` and evolve per the
   `clippy::all` + `clippy::pedantic` denied.
 - README rewritten: honest feature/compliance claims, workspace quickstart, docs
   index.
-- **(Breaking, Phase 3)** `HttpRequest::from_buffer`/`from_buffer_sync`
-  replaced by the pure `HttpRequest::parse(buffer, &Limits)` returning
+- **(Breaking)** `HttpRequest::from_buffer`/`from_buffer_sync` replaced by the
+  pure `HttpRequest::parse(buffer, &Limits)` returning
   `Ok(Some((request, consumed)))` or `Ok(None)`.
-- **(Breaking, Phase 3)** The WebSocket codec is frame-level:
+- **(Breaking)** The WebSocket codec is frame-level:
   `websocket::frame::Frame { fin, opcode, payload }` with
   `Frame::parse(data, &Limits)`; message semantics (echo, reassembly, close
   codes) live in the connection layer. `WebSocketFrame` is gone.
-- **(Breaking, Phase 3)** `websocket::handshake::is_websocket_request` replaced
-  by `validate_upgrade` returning `UpgradeCheck::{NotUpgrade, Valid, Invalid}`.
-- **(Breaking, Phase 3)** `websocket::handle_websocket` is generic over
+- **(Breaking)** `websocket::handshake::is_websocket_request` replaced by
+  `validate_upgrade` returning `UpgradeCheck::{NotUpgrade, Valid, Invalid}`.
+- **(Breaking)** `websocket::handle_websocket` is generic over
   `AsyncRead + AsyncWrite` and takes the key plus `&Limits`.
-- **(Breaking, Phase 3)** `Config` gains an explicit `address` (default
-  `127.0.0.1:8000`, overridable via `SERVER_ADDR`); the port-scan fallback is
-  removed (ADR-0008).
-- The WebSocket ping ticker no longer fires immediately after the handshake;
-  the first ping goes out one full interval later (F10).
+- **(Breaking)** `Config` gains an explicit `address` (default `127.0.0.1:8000`,
+  overridable via `SERVER_ADDR`); the port-scan fallback is removed (ADR-0008).
+- The WebSocket ping ticker no longer fires immediately after the handshake; the
+  first ping goes out one full interval later (F10).
+- Documentation polish: all module doc comments and docs cross-reference the
+  ADRs and the security controls catalog instead of the refactor plan, crate
+  docs gained a documentation map pointing at `docs/` (architecture, protocol
+  deep-dives, RFC matrices), and README badges for CI status, MIT license and
+  `unsafe`-forbidden were added.
+- `server`: error responses (`431`, `413`, `400`, ...) are followed by a
+  graceful close — `shutdown` plus a bounded drain of unread request bytes —
+  instead of an immediate socket drop. A close with unread receive-queue
+  data completes as a TCP RST, and an RST racing the client's read could
+  discard the queued response entirely, so clients (e.g. 64 KiB header
+  bombs) intermittently saw an empty connection instead of the correct
+  status. The drain is bounded (1 MiB / 2 s) to keep the Slow-Loris posture.
 
 ### Removed
 
@@ -116,7 +126,7 @@ releases yet; the workspace crates are at `0.1.0` and evolve per the
   0001–0005, flow diagrams → `docs/protocols/`, change history → this changelog,
   migration notes → the entry below.
 - Unused `bytes` dependency from the `http` crate; `chrono` from the tree.
-- (Phase 3) The port-scan fallback in `Config::default()` and the
+- The port-scan fallback in `Config::default()` and the
   `ServerError::PortUnavailable` variant.
 
 ## [Refinements] — 2025-10-11

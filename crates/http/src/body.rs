@@ -1,6 +1,6 @@
 //! Body framings: the chunked transfer-encoding decoder is pure over byte
-//! slices (REFACTOR-PLAN.md §3.2 D2), so it can be driven by buffered bytes
-//! and fuzzed without a socket.
+//! slices (ADR-0005), so it can be driven by buffered bytes and fuzzed
+//! without a socket.
 
 use crate::error::{Error, Result};
 

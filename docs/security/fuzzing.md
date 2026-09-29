@@ -1,16 +1,16 @@
 # Fuzzing
 
-The parsers at the trust boundary are fuzzed with `cargo-fuzz` (libFuzzer):
-the HTTP request parser and the WebSocket frame parser. The harnesses run on
-a pinned nightly and CI executes a 60-second smoke per target on every push
-and PR, archiving crash artifacts.
+The parsers at the trust boundary are fuzzed with `cargo-fuzz` (libFuzzer): the
+HTTP request parser and the WebSocket frame parser. The harnesses run on a
+pinned nightly and CI executes a 60-second smoke per target on every push and
+PR, archiving crash artifacts.
 
 ## Targets
 
-| Harness              | Function under test                    | What it proves                                                |
-| -------------------- | -------------------------------------- | ------------------------------------------------------------- |
-| `request_head_parse` | `http::request::HttpRequest::parse`    | No panic, no unbounded allocation, no hang on arbitrary bytes; consumed never exceeds input |
-| `frame_parse`        | `websocket::frame::Frame::parse`       | No panic on arbitrary bytes; declared-length arithmetic sound (oversized frames rejected before buffering) |
+| Harness              | Function under test                 | What it proves                                                                                             |
+| -------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `request_head_parse` | `http::request::HttpRequest::parse` | No panic, no unbounded allocation, no hang on arbitrary bytes; consumed never exceeds input                |
+| `frame_parse`        | `websocket::frame::Frame::parse`    | No panic on arbitrary bytes; declared-length arithmetic sound (oversized frames rejected before buffering) |
 
 Both call pure functions over byte slices (per
 [ADR-0005](../adr/0005-generic-io-and-pure-parsers.md)), which is what makes
@@ -33,9 +33,8 @@ fuzz/
 ```
 
 The seed corpora contain valid requests (GET, POST with body, chunked, an
-upgrade), the RFC 6455 §5.7 masked "Hello" frame, a close frame, and
-truncated variants so the fuzzer starts from known-good and known-edge
-inputs.
+upgrade), the RFC 6455 §5.7 masked "Hello" frame, a close frame, and truncated
+variants so the fuzzer starts from known-good and known-edge inputs.
 
 ## How to run
 
@@ -50,8 +49,8 @@ Omit `-max_total_time` for an indefinite local run. Crash inputs land in
 ## CI policy
 
 - A 60-second smoke run per target on every push and PR
-  (`.github/workflows/cqc.yml`, job `fuzz-smoke`), with
-  `-rss_limit_mb=2560` as an allocation guard.
+  (`.github/workflows/cqc.yml`, job `fuzz-smoke`), with `-rss_limit_mb=2560` as
+  an allocation guard.
 - Crash artifacts are archived as CI artifacts.
 - A found crash becomes a regression test in the relevant crate's
   `tests/security_*.rs` with its control ID, before the fix lands.

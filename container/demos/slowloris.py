@@ -4,7 +4,7 @@
 Opens several connections, sends an incomplete request head, then goes
 silent for longer than the server's head-read timeout (default 10 s).
 A server without this control would hold every socket open indefinitely
-(finding F2 in REFACTOR-PLAN.md); this server must drop each stalled
+(finding F2); this server must drop each stalled
 connection with a `400` response, while normal traffic keeps working.
 
 Note the honest scope of the control: the timeout is a per-read idle

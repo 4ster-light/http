@@ -1,5 +1,4 @@
-//! Connection-level request reading over generic IO (REFACTOR-PLAN.md §3.2
-//! D2/D3).
+//! Connection-level request reading over generic IO (ADR-0005).
 //!
 //! The caller owns one persistent buffer across requests (pipelining-safe,
 //! SEC-HTTP-007); `read_request` appends to it and consumes exactly the

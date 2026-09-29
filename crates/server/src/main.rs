@@ -1,5 +1,6 @@
 //! Demo server binary: static file serving, a POST echo endpoint, and
-//! WebSocket connections, wiring together the `http` and `websocket` crates.
+//! WebSocket connections, wiring together the `http` and `websocket` crates
+//! (see `docs/architecture.md` for the data flow).
 
 mod config;
 mod connection;

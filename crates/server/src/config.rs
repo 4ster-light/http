@@ -3,7 +3,7 @@ use http::limits::Limits;
 /// Demo server configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Explicit bind address (plan decision D8): no port scanning fallback,
+    /// Explicit bind address (ADR-0008): no port scanning fallback,
     /// bind failure is fatal. `SERVER_ADDR` may override for tests and
     /// deployments.
     pub address: String,

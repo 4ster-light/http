@@ -1,4 +1,4 @@
-//! Typed security limits for the WebSocket layer (REFACTOR-PLAN.md §3.2 D4).
+//! Typed security limits for the WebSocket layer (ADR-0006).
 
 use std::time::Duration;
 

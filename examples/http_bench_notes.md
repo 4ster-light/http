@@ -1,7 +1,7 @@
 # HTTP benchmarking notes
 
-HTTP load generation is done with [wrk](https://github.com/wg/wrk) running in
-a container, so no local tooling is required (G4: reproducible benchmarks).
+HTTP load generation is done with [wrk](https://github.com/wg/wrk) running in a
+container, so no local tooling is required (reproducible benchmarks, ADR-0009).
 
 ## Why wrk in a container?
 
@@ -13,11 +13,11 @@ a container, so no local tooling is required (G4: reproducible benchmarks).
 
 ## Scenarios
 
-| Scenario        | Command                                                                | What it shows                                              |
-| --------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Keep-alive ON   | `wrk -t4 -c100 -d10s --latency http://HOST:PORT/`                      | Connection reuse (default): the SEC-HTTP-005/F1/F3 payoff.  |
-| Keep-alive OFF  | `wrk -t4 -c100 -d10s --latency -H "Connection: close" URL`             | Cost of a full TCP setup per request; the headline delta.   |
-| Latency profile | same with `-c10`                                                       | p50/p99 under light concurrency.                            |
+| Scenario        | Command                                                    | What it shows                                              |
+| --------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| Keep-alive ON   | `wrk -t4 -c100 -d10s --latency http://HOST:PORT/`          | Connection reuse (default): the SEC-HTTP-005/F1/F3 payoff. |
+| Keep-alive OFF  | `wrk -t4 -c100 -d10s --latency -H "Connection: close" URL` | Cost of a full TCP setup per request; the headline delta.  |
+| Latency profile | same with `-c10`                                           | p50/p99 under light concurrency.                           |
 
 The keep-alive ON/OFF delta is the headline number: it validates that the
 connection layer actually reuses connections (F1's buffer ownership + F3's

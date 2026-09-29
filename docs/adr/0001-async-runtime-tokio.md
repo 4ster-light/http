@@ -6,19 +6,18 @@
 
 ## Context
 
-The project implements network protocols from scratch for learning purposes,
-and must handle many concurrent connections without one OS thread per
-connection. At project inception the realistic choices were `std` threads plus
-blocking IO (simplest, scales poorly, teaches less about modern Rust),
-`async-std` (smaller ecosystem), `smol` (minimal), or `tokio` (the de-facto
-standard with the richest ecosystem: timers, `select!`, `BytesMut`).
+The project implements network protocols from scratch for learning purposes, and
+must handle many concurrent connections without one OS thread per connection. At
+project inception the realistic choices were `std` threads plus blocking IO
+(simplest, scales poorly, teaches less about modern Rust), `async-std` (smaller
+ecosystem), `smol` (minimal), or `tokio` (the de-facto standard with the richest
+ecosystem: timers, `select!`, `BytesMut`).
 
 ## Decision
 
-Use **tokio**, with one task per accepted connection. As of the workspace
-split, each crate declares only the tokio features it actually needs (`net`,
-`io-util`, `time`, `fs`, `rt-multi-thread`, `macros`) instead of
-`features = ["full"]`.
+Use **tokio**, with one task per accepted connection. As of the workspace split,
+each crate declares only the tokio features it actually needs (`net`, `io-util`,
+`time`, `fs`, `rt-multi-thread`, `macros`) instead of `features = ["full"]`.
 
 ## Consequences
 

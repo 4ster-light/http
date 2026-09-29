@@ -1,7 +1,7 @@
 # 0004 - httpdate over chrono for the Date header
 
 - **Status:** Accepted
-- **Date:** 2026-07-31 (implemented in Phase 1; plan question Q6 / decision D6)
+- **Date:** 2026-07-31 (implemented with the workspace split)
 
 ## Context
 
@@ -19,11 +19,11 @@ Use `httpdate::fmt_http_date(SystemTime::now())` in
 
 ## Consequences
 
-- Smaller dependency tree and compile times; no date-time advisory surface for
-  a formatting-only need.
-- The emitted format is unchanged (verified: `date: Fri, 31 Jul 2026 … GMT`),
-  so this was a zero-behavior-change swap validated by the existing tests and
-  the live smoke test.
+- Smaller dependency tree and compile times; no date-time advisory surface for a
+  formatting-only need.
+- The emitted format is unchanged (verified: `date: Fri, 31 Jul 2026 … GMT`), so
+  this was a zero-behavior-change swap validated by the existing tests and the
+  live smoke test.
 - If the project ever needs real calendar math (cache expiry calculations,
   scheduling), the decision can be revisited with an actual requirement on the
   table.

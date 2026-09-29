@@ -1,6 +1,6 @@
 //! WebSocket connection lifecycle: the frame loop over generic IO with
 //! echo behavior, liveness ping/pong, fragmentation reassembly, and the
-//! close handshake (REFACTOR-PLAN.md §3.2 D2, SEC-WS-009).
+//! close handshake (ADR-0005, SEC-WS-009).
 
 use crate::{
     error::{Error, Result},

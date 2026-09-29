@@ -1,4 +1,4 @@
-//! Pure HTTP/1.1 request parsing (REFACTOR-PLAN.md §3.2 D2/D3).
+//! Pure HTTP/1.1 request parsing (ADR-0005).
 //!
 //! The parser operates on caller-managed buffers: it either returns the
 //! complete request plus the number of bytes consumed, or reports that more

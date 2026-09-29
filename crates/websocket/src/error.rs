@@ -1,4 +1,5 @@
-//! Error type for the `websocket` crate (REFACTOR-PLAN.md §3.2 D5).
+//! Error type for the `websocket` crate (ADR-0003: one error type per
+//! crate, no shared error crate).
 
 use thiserror::Error;
 

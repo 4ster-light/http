@@ -22,7 +22,7 @@ cargo doc --workspace --open             # API docs
 
 `RUST_LOG=server=debug cargo run -p server` enables verbose logging.
 
-The repo also ships a `justfile` wrapping the common flows (G4):
+The repo also ships a `justfile` wrapping the common flows (ADR-0009):
 
 ```bash
 just --list              # overview
@@ -40,8 +40,8 @@ just demo-container slowloris   # ...or from the compose attack profile
 ```
 
 See [benchmarking.md](benchmarking.md) for the recorded results and
-[ADR-0009](adr/0009-containerized-demos-and-benchmarks.md) for the container
-and demo decisions.
+[ADR-0009](adr/0009-containerized-demos-and-benchmarks.md) for the container and
+demo decisions.
 
 ## Lint policy
 
@@ -69,8 +69,8 @@ duplicating the `0x8` arm is deliberate.
 ## Documentation conventions
 
 - **rustdoc:** every public item is documented, with RFC section references
-  where applicable, `# Errors` sections on `Result`-returning functions, and
-  doc examples compiled and run as tests.
+  where applicable, `# Errors` sections on `Result`-returning functions, and doc
+  examples compiled and run as tests.
 - **Markdown docs** (this tree): plain markdown, no build step. Relative links,
   always with the `.md` suffix so they work on GitHub.
 - **Compliance matrices** are tables, not prose; `❌` rows are the roadmap.
@@ -96,7 +96,7 @@ Live in [adr/](adr/). Format: [adr/0000-template.md](adr/0000-template.md)
 GitHub Actions (`.github/workflows/cqc.yml`) runs on every push to `main` and
 every PR: `fmt --check`, `clippy --workspace --all-targets`, `test --workspace`,
 `doc --workspace`, a boot-and-curl smoke test of the server binary (including
-the POST echo F1 regression probe), and a 60-second fuzz smoke per target with
-crash-artifact archiving. The container image, benchmarks and attack demos are
-reproducible locally with Podman (ADR-0009); a container-build CI job is on the
-polish-phase list.
+the POST echo F1 regression probe), a container build plus in-container
+boot-and-curl smoke (static 200, 404, WebSocket 101), and a 60-second fuzz smoke
+per target with crash-artifact archiving. The container image, benchmarks and
+attack demos remain reproducible locally with Podman (ADR-0009).
