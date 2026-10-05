@@ -49,19 +49,19 @@ fuzzed in CI.
 
 ### HTTP/1.1 (RFC 7230-7235)
 
-- ✅ Request parsing for all common methods (GET, POST, PUT, DELETE, HEAD,
+- Request parsing for all common methods (GET, POST, PUT, DELETE, HEAD,
   OPTIONS, PATCH, TRACE, CONNECT)
-- ✅ Persistent connections (keep-alive): idle timeout and request budget
+- Persistent connections (keep-alive): idle timeout and request budget
   enforced to match the advertised `Keep-Alive` header
-- ✅ Pipelining: a connection-owned buffer never discards bytes (F1 closed)
-- ✅ Request bodies via `Content-Length` and chunked transfer-encoding
-- ✅ CL/TE conflict rejection per RFC 9112 §6.3 (request-smuggling defense)
-- ✅ Response builder with strongly-typed status codes (including `413`/`431`)
-- ✅ Auto-generated standard headers (`Date`, `Server`, `Connection`,
+- Pipelining: a connection-owned buffer never discards bytes (F1 closed)
+- Request bodies via `Content-Length` and chunked transfer-encoding
+- CL/TE conflict rejection per RFC 9112 §6.3 (request-smuggling defense)
+- Response builder with strongly-typed status codes (including `413`/`431`)
+- Auto-generated standard headers (`Date`, `Server`, `Connection`,
   `Keep-Alive`)
-- ✅ Malformed input answered with proper 4xx responses, never silent drops
-- ✅ Read timeouts against Slow-Loris style attacks
-- ✅ Static file serving with content-type detection, percent-decoding, and
+- Malformed input answered with proper 4xx responses, never silent drops
+- Read timeouts against Slow-Loris style attacks
+- Static file serving with content-type detection, percent-decoding, and
   canonicalized traversal protection
 
 Full requirement-by-requirement status:
@@ -69,32 +69,32 @@ Full requirement-by-requirement status:
 
 ### WebSocket (RFC 6455)
 
-- ✅ Opening handshake with full §4.2.1 validation (GET, HTTP/1.1+, base64
+- Opening handshake with full §4.2.1 validation (GET, HTTP/1.1+, base64
   16-byte key) and `Sec-WebSocket-Accept` computation per §4.2
-- ✅ Strict frame codec: masking (§5.3), RSV bits, opcodes, 64-bit length MSB,
+- Strict frame codec: masking (§5.3), RSV bits, opcodes, 64-bit length MSB,
   control-frame rules (§5.5)
-- ✅ Message fragmentation and reassembly per §5.4, with interleaved control
+- Message fragmentation and reassembly per §5.4, with interleaved control
   frames handled immediately
-- ✅ Text and binary messages, echo behavior in the demo server
-- ✅ Data-frame and message size caps (close 1009 before buffering)
-- ✅ Protocol failures answered with the right close code (1002/1007/1009)
-- ✅ Server-initiated ping/pong liveness checks with timeout
-- ✅ Clean close handshake with status codes and reasons
+- Text and binary messages, echo behavior in the demo server
+- Data-frame and message size caps (close 1009 before buffering)
+- Protocol failures answered with the right close code (1002/1007/1009)
+- Server-initiated ping/pong liveness checks with timeout
+- Clean close handshake with status codes and reasons
 
 Full requirement-by-requirement status:
 [docs/rfc-compliance/websocket-rfc6455.md](docs/rfc-compliance/websocket-rfc6455.md)
 
 ### Engineering practices
 
-- ✅ Cargo workspace: two protocol libraries + one demo binary (see below)
-- ✅ Strong typing for methods, status codes, frames, limits and errors
+- Cargo workspace: two protocol libraries + one demo binary (see below)
+- Strong typing for methods, status codes, frames, limits and errors
   (`thiserror`)
-- ✅ Per-crate error types: `http::Error`, `websocket::Error`
-- ✅ Pure parsers over byte slices; connection drivers generic over
+- Per-crate error types: `http::Error`, `websocket::Error`
+- Pure parsers over byte slices; connection drivers generic over
   `AsyncRead + AsyncWrite` (duplex-tested, fuzz-targeted)
-- ✅ Async/await throughout, one `tokio` task per connection
-- ✅ Structured logging with `tracing`
-- ✅ 90 tests (8 unit + 14 integration + 46 security/conformance + 20
+- Async/await throughout, one `tokio` task per connection
+- Structured logging with `tracing`
+- 90 tests (8 unit + 14 integration + 46 security/conformance + 20
   end-to-end + 2 doctests), clippy-clean with `all`/`pedantic` warnings denied
   workspace-wide, `missing_docs` denied, `unsafe_code` forbidden
 
