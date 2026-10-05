@@ -74,6 +74,10 @@ full list).
 - **HTTP request smuggling across intermediaries.** The server is modeled as
   origin, not proxy. SEC-HTTP-003 removes the local CL/TE ambiguity.
 - **Network-layer DoS** (SYN floods etc.). That sits below the application.
-- **`Host`/`Origin` header validation.** Recorded in the compliance matrices as
-  the remaining honest gap; not exploitable beyond request confusion in the
-  current single-tenant demo.
+- **`Host` validation.** HTTP/1.1 requests must carry `Host` (SEC-HTTP-009);
+  virtual-host routing is not offered, so the value is not matched against
+  anything.
+- **`Origin` validation.** Recorded in the WebSocket compliance matrix as an
+  accepted risk; the decision is in
+  [ADR-0011](../adr/0011-websocket-origin-validation.md), not exploitable beyond
+  request confusion in the current single-tenant demo.

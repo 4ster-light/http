@@ -11,7 +11,7 @@ use crate::{
 };
 use bytes::BytesMut;
 use tokio::{
-    io::{AsyncRead, AsyncReadExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     time::timeout,
 };
 
@@ -21,6 +21,11 @@ use tokio::{
 /// Returns `Ok(None)` on a clean close with an empty buffer (the peer had no
 /// pending request). Any leftover pipelined bytes stay in `buffer` for the
 /// next call (F1 fix).
+///
+/// When the request head announces `Expect: 100-continue` and a body, this
+/// writes a `100 Continue` interim response before waiting for the body
+/// (RFC 9110 §10.1.1; HTTP/1.1 only). Clients that send the body eagerly do
+/// not need it and it is omitted once the body is already present.
 ///
 /// The read is bounded by [`Limits::head_read_timeout`] once bytes start
 /// arriving (SEC-HTTP-002). When `buffer` is empty (a keep-alive idle
@@ -32,15 +37,36 @@ use tokio::{
 /// Propagates [`HttpRequest::parse`] errors (malformed request, limit
 /// violations) and IO failures; a timeout expiry mid-request maps to
 /// [`Error::InvalidHttpRequest`].
-pub async fn read_request<R: AsyncRead + Unpin>(
+pub async fn read_request<R>(
     io: &mut R,
     buffer: &mut BytesMut,
     limits: &Limits,
-) -> Result<Option<HttpRequest>> {
+) -> Result<Option<HttpRequest>>
+where
+    R: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut continue_sent = false;
     loop {
-        if let Some((request, consumed)) = HttpRequest::parse(buffer, limits)? {
-            let _ = buffer.split_to(consumed);
-            return Ok(Some(request));
+        match HttpRequest::parse(buffer, limits) {
+            Ok(Some((request, consumed))) => {
+                let _ = buffer.split_to(consumed);
+                return Ok(Some(request));
+            }
+            Ok(None) => {
+                // The head may be complete while the body is still on its way.
+                // If the client is waiting for `100 Continue`, answer it now.
+                if !continue_sent
+                    && let Some((head, _)) = HttpRequest::parse_head(buffer, limits)?
+                    && head.version != "HTTP/1.0"
+                    && expects_continue(&head)
+                    && request_has_body(&head)
+                {
+                    io.write_all(b"HTTP/1.1 100 Continue\r\n\r\n").await?;
+                    io.flush().await?;
+                    continue_sent = true;
+                }
+            }
+            Err(e) => return Err(e),
         }
         // Either a fresh request window (idle timeout applies when
         // the buffer is empty) or a partial request (head timeout).
@@ -76,4 +102,21 @@ pub async fn read_request<R: AsyncRead + Unpin>(
             }
         }
     }
+}
+
+/// Whether the request carries `Expect: 100-continue` (RFC 9110 §10.1.1).
+fn expects_continue(request: &HttpRequest) -> bool {
+    request
+        .get_header("expect")
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("100-continue"))
+}
+
+/// Whether the request announces a body, making a `100 Continue` meaningful.
+fn request_has_body(request: &HttpRequest) -> bool {
+    if let Some(content_length) = request.get_header("content-length") {
+        return content_length.trim().parse::<u64>().map_or(true, |n| n > 0);
+    }
+    request
+        .get_header("transfer-encoding")
+        .is_some_and(|te| te.to_lowercase().contains("chunked"))
 }

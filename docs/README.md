@@ -67,6 +67,8 @@ Immutable, numbered, one decision each. See
 | [0007](adr/0007-keep-alive-policy.md)                  | Keep-alive policy: enforce what is advertised       | Accepted                                     |
 | [0008](adr/0008-explicit-bind-port.md)                 | Explicit bind address, fail fast on conflict        | Accepted                                     |
 | [0009](adr/0009-containerized-demos-and-benchmarks.md) | Containerized demos, benchmarks, and attack scripts | Accepted                                     |
+| [0010](adr/0010-expect-100-continue.md)                | `Expect: 100-continue` in the connection reader     | Accepted                                     |
+| [0011](adr/0011-websocket-origin-validation.md)        | WebSocket Origin validation: accepted risk          | Accepted                                     |
 
 Cross-references used throughout: `F1-F11` are audit findings from the original
 security audit (summary in [security/controls.md](security/controls.md)), and

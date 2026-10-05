@@ -62,8 +62,10 @@ sockets, no async, no runtime. The connection layers own the buffers:
    (SEC-HTTP-002); the idle keep-alive window closes quiet connections
    (SEC-HTTP-005).
 3. The parse yields the request including its body (Content-Length or chunked),
-   so same-segment POST bodies and pipelined requests work (F1 fixed). Parse
-   failures produce a mapped 4xx/5xx response before close (F8 fixed).
+   so same-segment POST bodies and pipelined requests work (F1 fixed). A client
+   that announced `Expect: 100-continue` receives an interim `100` before the
+   body is awaited (SEC-HTTP-010, ADR-0010). Parse failures produce a mapped
+   4xx/5xx response before close (F8 fixed).
 4. `websocket::handshake::validate_upgrade` classifies the request; an invalid
    upgrade attempt gets `400` (SEC-WS-007), a valid one hands the socket to
    `websocket::handle_websocket`.
@@ -87,8 +89,9 @@ sockets, no async, no runtime. The connection layers own the buffers:
    close 1002/1007/1009 before shutdown (F5/F6/F8 fixed).
 4. Text is echoed with an `"Echo: "` prefix; binary is echoed as-is; ping gets a
    pong; close gets a close reply.
-5. The first server ping goes out one interval (30 s) after the handshake; a
-   missed pong by the next tick closes with 1002 (SEC-WS-008, F10 fixed).
+5. The first server ping goes out one interval (30 s) after the handshake; if no
+   frame of any kind arrives by the next tick, the connection closes with 1002
+   (SEC-WS-008, F10 fixed).
 
 ## Error model (ADR-0003)
 

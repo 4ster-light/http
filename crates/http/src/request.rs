@@ -111,34 +111,14 @@ impl HttpRequest {
     /// # Errors
     ///
     /// Returns [`Error::InvalidHttpRequest`] for a malformed request line,
-    /// unsupported method, malformed header, or framing violation.
-    /// [`Error::HeadTooLarge`] and [`Error::BodyTooLarge`] for limit
-    /// violations as described above.
+    /// unsupported method, malformed header, missing `Host` on HTTP/1.1
+    /// (SEC-HTTP-009), unsupported request-target form (SEC-HTTP-011), or
+    /// framing violation. [`Error::HeadTooLarge`] and [`Error::BodyTooLarge`]
+    /// for limit violations as described above.
     pub fn parse(buffer: &[u8], limits: &Limits) -> Result<Option<(Self, usize)>> {
-        let Some(head_len) = find_head_end(buffer) else {
-            // No terminator yet: the head must still fit the limit, otherwise
-            // an attacker could keep the buffer growing forever (F8/SEC-HTTP-001).
-            if buffer.len() > limits.max_head_bytes {
-                return Err(Error::HeadTooLarge);
-            }
+        let Some((mut request, head_len)) = Self::parse_head(buffer, limits)? else {
             return Ok(None);
         };
-        if head_len > limits.max_head_bytes {
-            return Err(Error::HeadTooLarge);
-        }
-
-        let (mut request, _) = parse_head(&buffer[..head_len])?;
-
-        // SEC-HTTP-003: Content-Length + Transfer-Encoding together is a
-        // request-smuggling vector; TE precedence per RFC 9112 §6.3 is to
-        // reject the message entirely.
-        let has_cl = request.headers.contains_key("content-length");
-        let has_te = request.headers.contains_key("transfer-encoding");
-        if has_cl && has_te {
-            return Err(Error::InvalidHttpRequest(
-                "Content-Length with Transfer-Encoding",
-            ));
-        }
 
         if let Some(content_length) = request.headers.get("content-length") {
             let length: usize = content_length
@@ -173,17 +153,63 @@ impl HttpRequest {
         Ok(Some((request, head_len)))
     }
 
+    /// Parses only the request head (request line plus header fields, up to
+    /// the `\r\n\r\n` terminator), returning the request with an empty body
+    /// and the number of head bytes consumed.
+    ///
+    /// Returns `Ok(None)` while the head terminator is still incomplete. This
+    /// is the framing half of [`HttpRequest::parse`], exposed so a connection
+    /// layer can act on the head before the body arrives (for example,
+    /// answering `Expect: 100-continue`).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::HeadTooLarge`] when the head exceeds
+    /// [`Limits::max_head_bytes`] (SEC-HTTP-001), and
+    /// [`Error::InvalidHttpRequest`] for a malformed head, missing `Host` on
+    /// HTTP/1.1 (SEC-HTTP-009), an unsupported request target (SEC-HTTP-011),
+    /// or a `Content-Length`/`Transfer-Encoding` conflict (SEC-HTTP-003).
+    pub fn parse_head(buffer: &[u8], limits: &Limits) -> Result<Option<(Self, usize)>> {
+        let Some(head_len) = find_head_end(buffer) else {
+            // No terminator yet: the head must still fit the limit, otherwise
+            // an attacker could keep the buffer growing forever (F8/SEC-HTTP-001).
+            if buffer.len() > limits.max_head_bytes {
+                return Err(Error::HeadTooLarge);
+            }
+            return Ok(None);
+        };
+        if head_len > limits.max_head_bytes {
+            return Err(Error::HeadTooLarge);
+        }
+
+        let request = parse_head_fields(&buffer[..head_len])?;
+
+        // SEC-HTTP-003: Content-Length + Transfer-Encoding together is a
+        // request-smuggling vector; RFC 9112 §6.3 says to reject the message
+        // entirely rather than pick a framing.
+        let has_cl = request.headers.contains_key("content-length");
+        let has_te = request.headers.contains_key("transfer-encoding");
+        if has_cl && has_te {
+            return Err(Error::InvalidHttpRequest(
+                "Content-Length with Transfer-Encoding",
+            ));
+        }
+
+        Ok(Some((request, head_len)))
+    }
+
     /// Parses a request head-only (no body) from a complete buffer; a
     /// convenience for tests and for the WebSocket handshake, which never
     /// has a body.
     ///
     /// # Errors
     ///
-    /// Same as [`HttpRequest::parse`], minus body failures; returns the parse
-    /// only if the input consumed exactly. This wrapper unwraps the
-    /// `Ok(Some(..))` result and discards the consumed count.
+    /// Same as [`HttpRequest::parse_head`], minus body failures; extra
+    /// trailing bytes (a body) are ignored. Returns
+    /// [`Error::InvalidHttpRequest`] when the buffer does not hold a complete
+    /// head.
     pub fn parse_head_only(buffer: &[u8]) -> Result<Self> {
-        match Self::parse(buffer, &Limits::default())? {
+        match Self::parse_head(buffer, &Limits::default())? {
             Some((request, _)) => Ok(request),
             None => Err(Error::InvalidHttpRequest("Incomplete request")),
         }
@@ -222,8 +248,52 @@ fn find_head_end(buffer: &[u8]) -> Option<usize> {
         .map(|pos| pos + 4)
 }
 
+/// True for the HTTP-version token grammar of RFC 9112 §2.3: `HTTP/`
+/// followed by digits, a dot, and digits.
+fn is_http_version(version: &str) -> bool {
+    let Some(rest) = version.strip_prefix("HTTP/") else {
+        return false;
+    };
+    let Some((major, minor)) = rest.split_once('.') else {
+        return false;
+    };
+    !major.is_empty()
+        && !minor.is_empty()
+        && major.bytes().all(|b| b.is_ascii_digit())
+        && minor.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Classifies the request target by form (RFC 9112 §3.2.1).
+///
+/// Origin-form (`/path`) is routed; asterisk-form (`*`) is only valid with
+/// `OPTIONS`; absolute-form (`scheme://authority/path`) is unsupported and
+/// rejected (SEC-HTTP-011); authority-form (`host:port`) is only meaningful
+/// for `CONNECT`, which the server then answers with `405`.
+fn validate_request_target(method: &HttpMethod, target: &str) -> Result<()> {
+    if target == "*" {
+        if *method != HttpMethod::Options {
+            return Err(Error::InvalidHttpRequest(
+                "Asterisk-form target requires OPTIONS",
+            ));
+        }
+        return Ok(());
+    }
+    if target.starts_with('/') {
+        return Ok(());
+    }
+    if target.contains("://") {
+        return Err(Error::InvalidHttpRequest(
+            "Absolute-form request target unsupported",
+        ));
+    }
+    if *method == HttpMethod::Connect {
+        return Ok(());
+    }
+    Err(Error::InvalidHttpRequest("Invalid request target"))
+}
+
 /// Parses the request line and header fields of a complete head.
-fn parse_head(head: &[u8]) -> Result<(HttpRequest, usize)> {
+fn parse_head_fields(head: &[u8]) -> Result<HttpRequest> {
     let head_text = std::str::from_utf8(head)
         .map_err(|_| Error::InvalidHttpRequest("Head is not valid UTF-8"))?;
     let mut lines = head_text.split("\r\n");
@@ -242,10 +312,13 @@ fn parse_head(head: &[u8]) -> Result<(HttpRequest, usize)> {
     let path = parts[1].to_string();
     let version = parts[2].to_string();
 
-    // RFC 9112 §3: the version token must look like `HTTP/digit.digit`.
-    if !version.starts_with("HTTP/") {
+    // RFC 9112 §2.3: the version token must be `HTTP/` DIGIT `.` DIGIT.
+    if !is_http_version(&version) {
         return Err(Error::InvalidHttpRequest("Invalid HTTP version"));
     }
+
+    // RFC 9112 §3.2.1: only supported target forms are routed.
+    validate_request_target(&method, &path)?;
 
     let mut headers: HashMap<String, String> = HashMap::new();
     for line in lines {
@@ -255,11 +328,14 @@ fn parse_head(head: &[u8]) -> Result<(HttpRequest, usize)> {
         let Some((name, value)) = line.split_once(':') else {
             return Err(Error::InvalidHttpRequest("Malformed header line"));
         };
-        let name = name.trim().to_lowercase();
-        let value = value.trim().to_string();
-        if name.is_empty() {
-            return Err(Error::InvalidHttpRequest("Empty header name"));
+        // RFC 9110 §5.6.3: whitespace between the field name and the colon
+        // MUST be rejected (smuggling vector). Leading whitespace is an
+        // obsolete line fold, which is also rejected.
+        if name.is_empty() || name.trim() != name {
+            return Err(Error::InvalidHttpRequest("Whitespace in header name"));
         }
+        let name = name.to_lowercase();
+        let value = value.trim().to_string();
         // RFC 9110 §5.2: a recipient MAY combine duplicate field lines into
         // one comma-separated value.
         headers
@@ -271,14 +347,17 @@ fn parse_head(head: &[u8]) -> Result<(HttpRequest, usize)> {
             .or_insert(value);
     }
 
-    Ok((
-        HttpRequest {
-            method,
-            path,
-            version,
-            headers,
-            body: Vec::new(),
-        },
-        head.len(),
-    ))
+    // RFC 9110 §7.4 / RFC 9112 §3.2: an HTTP/1.1 request MUST carry `Host`;
+    // HTTP/1.0 predates the requirement (SEC-HTTP-009).
+    if version != "HTTP/1.0" && !headers.contains_key("host") {
+        return Err(Error::InvalidHttpRequest("Missing Host header"));
+    }
+
+    Ok(HttpRequest {
+        method,
+        path,
+        version,
+        headers,
+        body: Vec::new(),
+    })
 }

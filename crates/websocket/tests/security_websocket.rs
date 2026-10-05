@@ -487,3 +487,60 @@ async fn sec_ws_008_ping_timeout_closes_1002() {
     let result = server_task.await.unwrap();
     assert!(matches!(result, Err(Error::WebSocketError(_)) | Ok(())));
 }
+
+/// SEC-WS-008 (F10 regression): any inbound frame, not just a Pong, proves
+/// the peer is alive and clears the missed-pong state. A client answering
+/// the first ping with a data frame must be pinged again, not closed.
+#[tokio::test(start_paused = true)]
+async fn sec_ws_008_inbound_frame_clears_ping_timeout() {
+    let (mut client, mut server) = tokio::io::duplex(4096);
+    let limits = Limits {
+        ping_interval: std::time::Duration::from_secs(30),
+        ..Limits::default()
+    };
+    let server_task =
+        tokio::spawn(async move { handle_websocket(&mut server, VALID_KEY, &limits).await });
+
+    // Let the first ping (t=30) go out, then send a data frame instead of a
+    // Pong: the connection is demonstrably alive.
+    tokio::time::sleep(std::time::Duration::from_secs(31)).await;
+    client
+        .write_all(&masked_frame(OpCode::Text, true, b"alive"))
+        .await
+        .unwrap();
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
+
+    // Advance past the second ping tick (t=60): the server pings again.
+    tokio::time::sleep(std::time::Duration::from_secs(31)).await;
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
+
+    // Drain everything the server sent after the handshake and assert that
+    // no close frame was produced.
+    let mut out = Vec::new();
+    let mut chunk = [0u8; 4096];
+    while let Ok(Ok(n)) =
+        tokio::time::timeout(std::time::Duration::from_millis(1), client.read(&mut chunk)).await
+    {
+        if n == 0 {
+            break;
+        }
+        out.extend_from_slice(&chunk[..n]);
+    }
+    let frames = frames_after_handshake(&out);
+    let parsed = parse_server_frames(&frames);
+    assert!(
+        parsed.iter().all(|(op, _)| *op != OpCode::Close),
+        "an inbound frame must count as liveness; got: {parsed:?}"
+    );
+    assert!(
+        parsed.iter().any(|(op, _)| *op == OpCode::Ping),
+        "the server must keep pinging a live peer; got: {parsed:?}"
+    );
+
+    drop(client);
+    let _ = server_task.await;
+}

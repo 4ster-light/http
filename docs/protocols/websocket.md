@@ -68,8 +68,12 @@ Read → parse one frame
   protocol error, 1007 invalid UTF-8, 1009 too big) before the connection ends,
   never a silent drop (F8 fixed).
 - **Liveness:** the first ping goes out one full interval (30 s) after the
-  handshake, not immediately (F10 fixed); a missed pong by the next tick sends
-  close 1002 ("Ping timeout") (SEC-WS-008). The behavior is pinned by a
-  paused-time test.
+  handshake, not immediately (F10 fixed); if no frame of any kind arrives by the
+  next tick, the server sends close 1002 ("Ping timeout") (SEC-WS-008). Any
+  inbound frame — not only a Pong — counts as proof of liveness. The behavior is
+  pinned by paused-time tests.
+- **Origin:** browser `Origin` validation (RFC 6455 §10.2) is intentionally out
+  of scope; the decision is recorded in
+  [ADR-0011](../adr/0011-websocket-origin-validation.md).
 - The loop is generic over `AsyncRead + AsyncWrite`, so tests drive it with
   `tokio::io::duplex` and paused clocks without real sockets.

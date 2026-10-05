@@ -94,7 +94,7 @@ Full requirement-by-requirement status:
   `AsyncRead + AsyncWrite` (duplex-tested, fuzz-targeted)
 - ✅ Async/await throughout, one `tokio` task per connection
 - ✅ Structured logging with `tracing`
-- ✅ 71 tests (13 unit + 27 integration + 43 security/conformance + 14
+- ✅ 90 tests (8 unit + 14 integration + 46 security/conformance + 20
   end-to-end + 2 doctests), clippy-clean with `all`/`pedantic` warnings denied
   workspace-wide, `missing_docs` denied, `unsafe_code` forbidden
 
@@ -177,7 +177,7 @@ RUST_LOG=server=debug cargo run -p server
 ### Tests, lints and docs
 
 ```bash
-cargo test --workspace                    # all 71 tests (incl. doctests)
+cargo test --workspace                    # all 90 tests (incl. doctests)
 cargo test -p http                        # just one crate
 cargo clippy --workspace --all-targets    # all + pedantic warnings denied
 cargo doc --workspace --open              # API documentation
@@ -310,10 +310,12 @@ and complete §5.4 fragmentation/reassembly.
 
 Every control carries an ID (`SEC-HTTP-003`, `SEC-WS-009`) in
 [docs/security/controls.md](docs/security/controls.md) with implementation and
-test pointers; 43 security tests and 14 end-to-end socket tests pin the
+test pointers; 46 security tests and 20 end-to-end socket tests pin the
 behavior, and CI fuzzes both parsers for 60 seconds per push. The compliance
-matrices mark the remaining declared gaps (`Host`/`Origin` validation) and the
-out-of-scope features explicitly.
+matrices mark the remaining declared gap (browser `Origin` validation, an
+accepted risk recorded in
+[ADR-0011](docs/adr/0011-websocket-origin-validation.md)) and the out-of-scope
+features explicitly.
 
 ## Roadmap
 

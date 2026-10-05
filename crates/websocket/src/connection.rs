@@ -82,8 +82,12 @@ where
             result = read_frame(io, &mut buffer, limits) => {
                 match result {
                     Ok(FrameRead::Frame(frame)) => {
+                        // Any inbound frame proves the peer is alive, so it
+                        // also satisfies the liveness ping (RFC 6455 §5.5.2);
+                        // only a totally silent peer misses the deadline.
+                        awaiting_pong = false;
                         if frame.is_control() {
-                            match handle_control(io, &frame, &mut awaiting_pong).await {
+                            match handle_control(io, &frame).await {
                                 ControlFlow::Continue => {}
                                 ControlFlow::Break => break,
                             }
@@ -131,7 +135,7 @@ enum ControlFlow {
     Break,
 }
 
-async fn handle_control<IO>(io: &mut IO, frame: &Frame, awaiting_pong: &mut bool) -> ControlFlow
+async fn handle_control<IO>(io: &mut IO, frame: &Frame) -> ControlFlow
 where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
@@ -163,7 +167,6 @@ where
         }
         OpCode::Pong => {
             info!("Received PONG");
-            *awaiting_pong = false;
             ControlFlow::Continue
         }
         _ => ControlFlow::Continue,

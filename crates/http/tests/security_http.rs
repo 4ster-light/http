@@ -11,7 +11,7 @@ use http::{
     request::HttpRequest,
     response::{HttpResponse, HttpStatusCode},
 };
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// SEC-HTTP-001, RFC 9110 §15.5.21 / RFC 9112 §2. Attack: header bomb
 /// (16+ KiB head without a terminator). Expected: `Error::HeadTooLarge`
@@ -237,4 +237,191 @@ fn sec_http_chunked_body_decodes() {
         .expect("complete");
     assert_eq!(req.body, b"Hello world");
     assert_eq!(consumed, request.len());
+}
+
+// ---------------------------------------------------------------------------
+// SEC-HTTP-009: Host header required on HTTP/1.1 (RFC 9110 §7.4)
+// ---------------------------------------------------------------------------
+
+/// SEC-HTTP-009, RFC 9110 §7.4 / RFC 9112 §3.2. Attack: HTTP/1.1 request
+/// without `Host` (virtual-host confusion). Expected: 400.
+#[test]
+fn sec_http_009_http_1_1_without_host_rejected_400() {
+    let request = b"GET / HTTP/1.1\r\nConnection: close\r\n\r\n";
+    let err = HttpRequest::parse(request, &Limits::default()).unwrap_err();
+    assert!(matches!(err, Error::InvalidHttpRequest(_)));
+    assert_eq!(err.status(), HttpStatusCode::BadRequest);
+}
+
+/// SEC-HTTP-009 boundary: HTTP/1.0 predates the requirement, so a missing
+/// `Host` is accepted (keeps the version condition honest).
+#[test]
+fn sec_http_009_http_1_0_without_host_accepted() {
+    let request = b"GET / HTTP/1.0\r\n\r\n";
+    assert!(
+        HttpRequest::parse(request, &Limits::default())
+            .unwrap()
+            .is_some()
+    );
+}
+
+/// SEC-HTTP-009, RFC 9110 §5.6.3. Attack: whitespace between a field name
+/// and the colon (`Host : evil`) could smuggle a second, spoofed `Host`.
+/// Expected: 400.
+#[test]
+fn sec_http_009_header_whitespace_before_colon_rejected() {
+    let request = b"GET / HTTP/1.1\r\nHost : evil\r\nHost: good\r\n\r\n";
+    let err = HttpRequest::parse(request, &Limits::default()).unwrap_err();
+    assert!(matches!(err, Error::InvalidHttpRequest(_)));
+}
+
+// ---------------------------------------------------------------------------
+// SEC-HTTP-011: request-target forms (RFC 9112 §3.2.1)
+// ---------------------------------------------------------------------------
+
+/// SEC-HTTP-011, RFC 9112 §3.2.1. Attack: absolute-form target on a server
+/// that only routes origin-form; previously it was misparsed as a path and
+/// silently 404'd. Expected: an explicit 400.
+#[test]
+fn sec_http_011_absolute_form_rejected_400() {
+    let request = b"GET http://example.com/ HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    let err = HttpRequest::parse(request, &Limits::default()).unwrap_err();
+    assert!(matches!(err, Error::InvalidHttpRequest(_)));
+    assert_eq!(err.status(), HttpStatusCode::BadRequest);
+}
+
+/// SEC-HTTP-011, RFC 9110 §9.3.7: server-wide `OPTIONS *` is routed.
+#[test]
+fn sec_http_011_asterisk_form_options_accepted() {
+    let request = b"OPTIONS * HTTP/1.1\r\nHost: x\r\n\r\n";
+    let (parsed, _) = HttpRequest::parse(request, &Limits::default())
+        .unwrap()
+        .expect("complete");
+    assert_eq!(parsed.path, "*");
+    assert_eq!(parsed.method, http::request::HttpMethod::Options);
+}
+
+/// SEC-HTTP-011: asterisk-form with any method other than `OPTIONS` is
+/// invalid (RFC 9112 §3.2.1).
+#[test]
+fn sec_http_011_asterisk_form_non_options_rejected() {
+    let request = b"GET * HTTP/1.1\r\nHost: x\r\n\r\n";
+    let err = HttpRequest::parse(request, &Limits::default()).unwrap_err();
+    assert!(matches!(err, Error::InvalidHttpRequest(_)));
+}
+
+/// SEC-HTTP-011, RFC 9112 §3.2.1: authority-form is only meaningful for
+/// `CONNECT`; for any other method it is an invalid target.
+#[test]
+fn sec_http_011_authority_form_requires_connect() {
+    let connect = b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    assert!(
+        HttpRequest::parse(connect, &Limits::default())
+            .unwrap()
+            .is_some()
+    );
+
+    let get = b"GET example.com:443 HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    let err = HttpRequest::parse(get, &Limits::default()).unwrap_err();
+    assert!(matches!(err, Error::InvalidHttpRequest(_)));
+}
+
+// ---------------------------------------------------------------------------
+// SEC-HTTP-010: Expect: 100-continue (RFC 9110 §10.1.1)
+// ---------------------------------------------------------------------------
+
+/// SEC-HTTP-010, RFC 9110 §10.1.1. A client that sends the head with
+/// `Expect: 100-continue` and waits receives the interim `100` before it
+/// sends the body; the request then completes normally.
+#[tokio::test]
+async fn sec_http_010_expect_continue_gets_100_then_request_completes() {
+    let (mut client, mut server) = tokio::io::duplex(256);
+    client
+        .write_all(
+            b"POST / HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 5\r\n\r\n",
+        )
+        .await
+        .unwrap();
+
+    let mut buffer = BytesMut::new();
+    let read_task = tokio::spawn(async move {
+        http::connection::read_request(&mut server, &mut buffer, &Limits::default()).await
+    });
+
+    // The interim response must arrive without the body being sent.
+    let mut chunk = [0u8; 128];
+    let n = tokio::time::timeout(std::time::Duration::from_secs(1), client.read(&mut chunk))
+        .await
+        .expect("interim response is prompt")
+        .unwrap();
+    let interim = String::from_utf8_lossy(&chunk[..n]);
+    assert!(
+        interim.starts_with("HTTP/1.1 100 Continue\r\n\r\n"),
+        "expected 100 Continue; got: {interim}"
+    );
+
+    client.write_all(b"Hello").await.unwrap();
+    let request = read_task.await.unwrap().unwrap().expect("request present");
+    assert_eq!(request.body, b"Hello");
+}
+
+/// SEC-HTTP-010 / SEC-HTTP-004: when the announced body already exceeds the
+/// cap, the 413 is decided from the head and no `100 Continue` is sent
+/// (RFC 9110 §10.1.1 allows a final status instead).
+#[tokio::test]
+async fn sec_http_010_expect_continue_with_oversized_body_skips_100() {
+    let (mut client, mut server) = tokio::io::duplex(256);
+    client
+        .write_all(
+            b"POST / HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 99999\r\n\r\n",
+        )
+        .await
+        .unwrap();
+
+    let limits = Limits {
+        max_body_bytes: 16,
+        ..Limits::default()
+    };
+    let mut buffer = BytesMut::new();
+    let err = http::connection::read_request(&mut server, &mut buffer, &limits)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::BodyTooLarge));
+
+    // No interim response was written before the final status was chosen.
+    let mut chunk = [0u8; 64];
+    let read = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        client.read(&mut chunk),
+    )
+    .await;
+    assert!(read.is_err(), "no bytes should be sent before the 413");
+}
+
+/// SEC-HTTP-010, RFC 9110 §10.1.1: `Expect` is ignored for HTTP/1.0, so no
+/// interim response is sent.
+#[tokio::test]
+async fn sec_http_010_expect_ignored_for_http_1_0() {
+    let (mut client, mut server) = tokio::io::duplex(256);
+    client
+        .write_all(b"POST / HTTP/1.0\r\nExpect: 100-continue\r\nContent-Length: 5\r\n\r\n")
+        .await
+        .unwrap();
+
+    let mut buffer = BytesMut::new();
+    let read_task = tokio::spawn(async move {
+        http::connection::read_request(&mut server, &mut buffer, &Limits::default()).await
+    });
+
+    let mut chunk = [0u8; 64];
+    let read = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        client.read(&mut chunk),
+    )
+    .await;
+    assert!(read.is_err(), "HTTP/1.0 must not receive 100 Continue");
+
+    client.write_all(b"Hello").await.unwrap();
+    let request = read_task.await.unwrap().unwrap().expect("request present");
+    assert_eq!(request.body, b"Hello");
 }

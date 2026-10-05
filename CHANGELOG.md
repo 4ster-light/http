@@ -45,8 +45,8 @@ recorded in the [ADRs](docs/adr/).
     and read timeouts (Slow-Loris mitigation, F2 closed).
   - Path-traversal hardening: percent-decode, canonicalize, prefix check,
     canonical-path read (F10 closed).
-  - Security test catalog: 43 SEC-\*-named tests with control IDs and RFC
-    references, plus 14 end-to-end tests against the real binary over TCP.
+  - Security test catalog: 46 SEC-\*-named tests with control IDs and RFC
+    references, plus 20 end-to-end tests against the real binary over TCP.
   - Fuzz harnesses `request_head_parse` and `frame_parse` with seed corpora and
     protocol dictionaries under `fuzz/`.
   - ADRs 0006–0008; compliance matrices updated to the post-hardening state with
@@ -79,10 +79,26 @@ recorded in the [ADRs](docs/adr/).
   - `websocket::handshake::accept_key` is public, so client implementations can
     verify `Sec-WebSocket-Accept` (RFC 6455 §4.2.2); server behavior unchanged.
 
+- HTTP/1.1 RFC-gap closure (controls SEC-HTTP-009/010/011, ADRs 0010–0011):
+  - `Host` is required on HTTP/1.1 (400 otherwise) and whitespace between a
+    field name and the colon is rejected (RFC 9110 §7.4/§5.6.3).
+  - `Expect: 100-continue` is answered with an interim `100` before the body is
+    awaited; the head is now parseable independently of the body via
+    `HttpRequest::parse_head`, and `read_request` writes the interim response
+    (HTTP/1.1 only; no `100` when the body is already buffered or rejected).
+  - All four request-target forms are classified: origin-form routed,
+    `OPTIONS *` routed, authority-form only for `CONNECT`, and absolute-form
+    rejected with `400` instead of being misparsed as a path.
+  - `HEAD` is routed like `GET` with the body suppressed by
+    `HttpResponse::into_head`; `OPTIONS` and `405` responses advertise the
+    routed methods in `Allow`.
+- ADR-0010 (`Expect: 100-continue` handling) and ADR-0011 (WebSocket `Origin`
+  validation kept as a declared accepted risk).
+
 ### Changed
 
-- `Date` header formatting switched from `chrono` to `httpdate`; emitted format
-  unchanged (ADR-0004).
+- `HttpResponse::with_json` no longer appends a `charset` parameter;
+  `application/json` is always UTF-8 (RFC 8259 §8.1).
 - `Config::default().static_dir` resolves via `CARGO_MANIFEST_DIR`, so serving
   works regardless of the process working directory; `STATIC_DIR` now overrides
   it for containers and deployments (ADR-0009).
@@ -114,11 +130,24 @@ recorded in the [ADRs](docs/adr/).
   `unsafe`-forbidden were added.
 - `server`: error responses (`431`, `413`, `400`, ...) are followed by a
   graceful close — `shutdown` plus a bounded drain of unread request bytes —
-  instead of an immediate socket drop. A close with unread receive-queue
-  data completes as a TCP RST, and an RST racing the client's read could
-  discard the queued response entirely, so clients (e.g. 64 KiB header
-  bombs) intermittently saw an empty connection instead of the correct
-  status. The drain is bounded (1 MiB / 2 s) to keep the Slow-Loris posture.
+  instead of an immediate socket drop. A close with unread receive-queue data
+  completes as a TCP RST, and an RST racing the client's read could discard the
+  queued response entirely, so clients (e.g. 64 KiB header bombs) intermittently
+  saw an empty connection instead of the correct status. The drain is bounded (1
+  MiB / 2 s) to keep the Slow-Loris posture.
+
+### Fixed
+
+- WebSocket liveness no longer over-closes connections: any inbound frame, not
+  only a `Pong`, resets the missed-pong state, so an actively-sending client is
+  never killed as if it were dead (SEC-WS-008).
+- The e2e suite's intermittent `Connection refused` failures: `spawn_server` now
+  holds a process-wide lock across probe + spawn + readiness and checks its own
+  child is alive before declaring readiness, so two parallel tests can no longer
+  share one ephemeral port and one test can no longer kill the server the other
+  is using.
+- Static file serving no longer depends on `STATIC_DIR` having a trailing slash;
+  paths are joined instead of string-concatenated.
 
 ### Removed
 

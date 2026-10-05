@@ -7,20 +7,20 @@ handshake-adjacent (Host/Origin) and are declared, not hidden.
 
 ## Opening handshake (§4)
 
-| §     | Requirement                                       | Level | Status | Implementation                                                                    | Evidence / tests                                                      |
-| ----- | ------------------------------------------------- | ----- | ------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| 4.2.1 | Request must be `GET`                             | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_get`                                   |
-| 4.2.1 | HTTP version ≥ 1.1                                | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_http_1_1`                              |
-| 4.2.1 | `Host` header present                             | MUST  | ❌     |                                                                                   | never inspected (future work; HTTP matrix shares the gap)             |
-| 4.2.1 | `Upgrade: websocket`                              | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `test_websocket_detection`                                            |
-| 4.2.1 | `Connection: Upgrade`                             | MUST  | ✅     | `handshake::validate_upgrade`                                                     | case-insensitive substring match                                      |
-| 4.2.1 | `Sec-WebSocket-Key`: base64 of 16 bytes           | MUST  | ✅     | decoded and length-checked                                                        | `sec_ws_007_handshake_requires_16_byte_base64_key`                    |
-| 4.2.1 | `Sec-WebSocket-Version: 13`                       | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_version_13`                            |
-| 4.2.1 | Failed handshake answered with an HTTP error      | MUST  | ✅     | server writes `400` for `UpgradeCheck::Invalid`                                   | e2e `e2e_websocket_invalid_key_400`                                   |
-| 4.2.2 | `101` response with `Upgrade`/`Connection`        | MUST  | ✅     | `handshake::generate_accept`                                                      | e2e `e2e_websocket_upgrade_echo_close`                                |
-| 4.2.2 | `Sec-WebSocket-Accept = base64(SHA1(key + GUID))` | MUST  | ✅     | `handshake::generate_accept_key`                                                  | `test_websocket_key_generation` (RFC vector); e2e accept-header check |
-| 4.2.2 | `Sec-WebSocket-Protocol` only if supported        | MUST  | ✅     | header never sent                                                                 | no subprotocol support (compliant by omission)                        |
-| 4.2.2 | Unsupported extensions must not be accepted       | MUST  | ✅     | no extension is ever negotiated; RSV≠0 frames are rejected as protocol violations | `sec_ws_003_rsv_bits_rejected`                                        |
+| §     | Requirement                                       | Level | Status | Implementation                                                                    | Evidence / tests                                                                 |
+| ----- | ------------------------------------------------- | ----- | ------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 4.2.1 | Request must be `GET`                             | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_get`                                              |
+| 4.2.1 | HTTP version ≥ 1.1                                | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_http_1_1`                                         |
+| 4.2.1 | `Host` header present                             | MUST  | ✅     | inherited from `http::request` (SEC-HTTP-009)                                     | `sec_http_009_*`; HTTP/1.1 handshakes without `Host` are rejected before upgrade |
+| 4.2.1 | `Upgrade: websocket`                              | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `test_websocket_detection`                                                       |
+| 4.2.1 | `Connection: Upgrade`                             | MUST  | ✅     | `handshake::validate_upgrade`                                                     | case-insensitive substring match                                                 |
+| 4.2.1 | `Sec-WebSocket-Key`: base64 of 16 bytes           | MUST  | ✅     | decoded and length-checked                                                        | `sec_ws_007_handshake_requires_16_byte_base64_key`                               |
+| 4.2.1 | `Sec-WebSocket-Version: 13`                       | MUST  | ✅     | `handshake::validate_upgrade`                                                     | `sec_ws_007_handshake_requires_version_13`                                       |
+| 4.2.1 | Failed handshake answered with an HTTP error      | MUST  | ✅     | server writes `400` for `UpgradeCheck::Invalid`                                   | e2e `e2e_websocket_invalid_key_400`                                              |
+| 4.2.2 | `101` response with `Upgrade`/`Connection`        | MUST  | ✅     | `handshake::generate_accept`                                                      | e2e `e2e_websocket_upgrade_echo_close`                                           |
+| 4.2.2 | `Sec-WebSocket-Accept = base64(SHA1(key + GUID))` | MUST  | ✅     | `handshake::generate_accept_key`                                                  | `test_websocket_key_generation` (RFC vector); e2e accept-header check            |
+| 4.2.2 | `Sec-WebSocket-Protocol` only if supported        | MUST  | ✅     | header never sent                                                                 | no subprotocol support (compliant by omission)                                   |
+| 4.2.2 | Unsupported extensions must not be accepted       | MUST  | ✅     | no extension is ever negotiated; RSV≠0 frames are rejected as protocol violations | `sec_ws_003_rsv_bits_rejected`                                                   |
 
 ## Frame protocol (§5)
 
@@ -53,16 +53,21 @@ handshake-adjacent (Host/Origin) and are declared, not hidden.
 
 ## Security considerations (§10)
 
-| §    | Requirement                                           | Level  | Status | Notes                                                                                |
-| ---- | ----------------------------------------------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| 10.2 | Origin validation for browser clients                 | SHOULD | ❌     | accepted risk for the demo; see [../security/hardening.md](../security/hardening.md) |
-| 10.3 | Masking makes traffic unpredictable to intermediaries | MUST   | ✅     | enforced (§5.3 above)                                                                |
-| 10.x | Frame-size limits protect against resource exhaustion | MUST   | ✅     | SEC-WS-002/009 with `Limits` caps                                                    |
+| §    | Requirement                                           | Level  | Status | Notes                                                                                      |
+| ---- | ----------------------------------------------------- | ------ | ------ | ------------------------------------------------------------------------------------------ |
+| 10.2 | Origin validation for browser clients                 | SHOULD | ❌     | accepted risk; decision recorded in [ADR-0011](../adr/0011-websocket-origin-validation.md) |
+| 10.3 | Masking makes traffic unpredictable to intermediaries | MUST   | ✅     | enforced (§5.3 above)                                                                      |
+| 10.x | Frame-size limits protect against resource exhaustion | MUST   | ✅     | SEC-WS-002/009 with `Limits` caps                                                          |
 
 ## Summary
 
 Every in-scope MUST/SHOULD of the frame protocol (§5) and the message semantics
 (§6) is implemented with a linked test; the close handshake and liveness
-behavior are covered end-to-end. The declared gaps are handshake `Host` checking
-and browser `Origin` validation (§10.2); both are future work recorded here and
-in the threat model.
+behavior are covered end-to-end, and the §4.2.1 `Host` requirement is enforced
+by the shared HTTP parser. The one declared gap is browser `Origin` validation
+(§10.2), recorded as an accepted risk in
+[ADR-0011](../adr/0011-websocket-origin-validation.md) and in the threat model.
+
+Liveness note: any inbound frame (not only a Pong) resets the missed-pong state,
+so an actively-sending client is never misclassified as dead
+(`sec_ws_008_inbound_frame_clears_ping_timeout`).

@@ -33,5 +33,6 @@ policy, expressed through `http::limits::Limits` (ADR-0006):
   advertisement/enforcement match.
 - Idle clients are disconnected after 5 s; the e2e suite covers sequential
   keep-alive requests within the window.
-- Slow clients that cannot finish a head within 10 s are dropped with a 408-
-  style timeout error path (currently a close after the mapped status).
+- Slow clients that cannot finish a head within 10 s are dropped: the read
+  timeout maps to `Error::InvalidHttpRequest("Read timeout")`, which the server
+  answers as `400 Bad Request` before closing.

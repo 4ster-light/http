@@ -228,8 +228,21 @@ impl HttpResponse {
     /// Sets a UTF-8 `application/json` body and its `Content-Type`.
     #[must_use]
     pub fn with_json(self, json: &str) -> Self {
-        self.with_header("content-type", "application/json; charset=utf-8")
+        self.with_header("content-type", "application/json")
             .with_body(json.as_bytes().to_vec())
+    }
+
+    /// Converts this response into the wire form for a `HEAD` request
+    /// (RFC 9110 §9.3.2): `Content-Length` records the length the equivalent
+    /// `GET` response would have sent, and the body is discarded.
+    #[must_use]
+    pub fn into_head(mut self) -> Self {
+        if !self.headers.contains_key("content-length") {
+            self.headers
+                .insert("content-length".to_string(), self.body.len().to_string());
+        }
+        self.body.clear();
+        self
     }
 
     /// Marks the connection to be closed after this response is sent.

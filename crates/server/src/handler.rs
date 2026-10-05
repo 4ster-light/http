@@ -6,8 +6,12 @@ use http::{
     request::{HttpMethod, HttpRequest},
     response::{HttpResponse, HttpStatusCode},
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::{fs, io::AsyncWriteExt, net::TcpStream};
+
+/// Methods the server actually routes; advertised on `OPTIONS` and on
+/// `405 Method Not Allowed` (RFC 9110 §9.3.7 / §15.5.5).
+const ALLOWED_METHODS: &str = "GET, HEAD, POST, OPTIONS";
 
 /// Dispatches one parsed request to a handler and writes the response.
 ///
@@ -21,10 +25,20 @@ pub async fn handle_http_request(
     close_after: bool,
 ) -> Result<()> {
     let response = match request.method {
-        HttpMethod::Get => handle_get_request(&request, config).await?,
+        HttpMethod::Get | HttpMethod::Head => handle_get_request(&request, config).await?,
         HttpMethod::Post => handle_post_request(&request),
         HttpMethod::Options => handle_options_request(&request),
-        _ => HttpResponse::new(HttpStatusCode::MethodNotAllowed).with_text("Method not allowed"),
+        _ => HttpResponse::new(HttpStatusCode::MethodNotAllowed)
+            .with_header("allow", ALLOWED_METHODS)
+            .with_text("Method not allowed"),
+    };
+
+    // RFC 9110 §9.3.2: a HEAD response carries the headers the equivalent GET
+    // would produce (including Content-Length) but never a body.
+    let response = if request.method == HttpMethod::Head {
+        response.into_head()
+    } else {
+        response
     };
 
     let mut response = if close_after || !response.keep_alive {
@@ -54,10 +68,13 @@ async fn handle_get_request(request: &HttpRequest, config: &Config) -> Result<Ht
         return Ok(HttpResponse::bad_request().with_text("Invalid path encoding"));
     };
 
-    let file_path = if decoded == "/" {
-        format!("{}/index.html", config.static_dir)
+    // Join rather than string-concatenate so a STATIC_DIR without a trailing
+    // slash still resolves correctly.
+    let relative = decoded.trim_start_matches('/');
+    let file_path: PathBuf = if relative.is_empty() {
+        Path::new(&config.static_dir).join("index.html")
     } else {
-        format!("{}{}", config.static_dir, decoded)
+        Path::new(&config.static_dir).join(relative)
     };
 
     let canonical_static_dir = std::fs::canonicalize(&config.static_dir)
@@ -74,7 +91,7 @@ async fn handle_get_request(request: &HttpRequest, config: &Config) -> Result<Ht
     // Read via the canonical path validated above (fixes the F10 TOCTOU).
     match fs::read(&canonical_file_path).await {
         Ok(contents) => Ok(HttpResponse::ok()
-            .with_header("content-type", &get_content_type(&file_path))
+            .with_header("content-type", &get_content_type(&canonical_file_path))
             .with_body(contents)),
         Err(_) => Ok(HttpResponse::not_found().with_text("File not found")),
     }
@@ -92,11 +109,9 @@ fn handle_post_request(request: &HttpRequest) -> HttpResponse {
 
 fn handle_options_request(_request: &HttpRequest) -> HttpResponse {
     HttpResponse::ok()
+        .with_header("allow", ALLOWED_METHODS)
         .with_header("access-control-allow-origin", "*")
-        .with_header(
-            "access-control-allow-methods",
-            "GET, POST, PUT, DELETE, OPTIONS",
-        )
+        .with_header("access-control-allow-methods", ALLOWED_METHODS)
         .with_header(
             "access-control-allow-headers",
             "Content-Type, Authorization",
@@ -135,9 +150,8 @@ fn json_escape(s: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn get_content_type(file_path: &str) -> String {
-    let path = Path::new(file_path);
-    match path.extension().and_then(|ext| ext.to_str()) {
+fn get_content_type(file_path: &Path) -> String {
+    match file_path.extension().and_then(|ext| ext.to_str()) {
         Some("html" | "htm") => "text/html; charset=utf-8".to_string(),
         Some("css") => "text/css; charset=utf-8".to_string(),
         Some("js") => "application/javascript; charset=utf-8".to_string(),

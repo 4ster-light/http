@@ -80,3 +80,16 @@ fn test_status_code_display() {
         "500 Internal Server Error"
     );
 }
+
+#[test]
+fn test_head_response_suppresses_body_keeps_length() {
+    // RFC 9110 §9.3.2: a HEAD response advertises the length GET would send
+    // but must not carry the body.
+    let response = HttpResponse::ok().with_text("Hello, World!").into_head();
+    let bytes = response.to_bytes();
+    let text = String::from_utf8_lossy(&bytes);
+
+    assert!(text.starts_with("HTTP/1.1 200 OK"));
+    assert!(text.contains("content-length: 13\r\n"));
+    assert!(!text.contains("Hello, World!"), "HEAD must not send a body");
+}

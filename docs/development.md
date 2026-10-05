@@ -61,10 +61,9 @@ CI additionally compiles with `RUSTFLAGS="-D warnings"` and builds docs with
 ### Exceptions
 
 `#[allow]` is acceptable only with a justification comment explaining why the
-instance is intentional, never to silence a category. Current example:
-`OpCode::from` maps reserved opcodes to `Close` and carries
-`#[allow(clippy::match_same_arms)]` with a comment, because the wildcard arm
-duplicating the `0x8` arm is deliberate.
+instance is intentional, never to silence a category. The workspace currently
+has no `#[allow]`s: the lint baseline (`all` + `pedantic`) is satisfied as-is,
+and any new exception must follow the comment rule above.
 
 ## Documentation conventions
 
