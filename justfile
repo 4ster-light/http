@@ -131,8 +131,8 @@ demo-container name:
     container/scripts/ensure-server 127.0.0.1:8080
     podman compose -f {{compose}} --profile attack run --rm demo_{{name}}
 
-# Fuzz both parsers with cargo-fuzz (needs nightly + cargo-fuzz)
+# Fuzz both parsers with cargo-fuzz (nightly pinned in fuzz/rust-toolchain.toml)
 fuzz duration="60":
     @# Targets: request_head_parse, frame_parse. See docs/security/fuzzing.md.
-    cd fuzz && cargo +nightly fuzz run request_head_parse -- -max_total_time={{duration}}
-    cd fuzz && cargo +nightly fuzz run frame_parse -- -max_total_time={{duration}}
+    cd fuzz && cargo fuzz run request_head_parse -- -max_total_time={{duration}}
+    cd fuzz && cargo fuzz run frame_parse -- -max_total_time={{duration}}

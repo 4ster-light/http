@@ -1,0 +1,7 @@
+# Pin the nightly compiler for the fuzz harnesses (docs/security/fuzzing.md).
+# The justfile recipe and the CI fuzz-smoke job invoke cargo in fuzz/ without
+# a `+toolchain` override, so this file governs on rustup systems. Plain
+# cargo (e.g. nix toolchains) ignores it and uses the active nightly.
+[toolchain]
+channel = "nightly-2026-11-21"
+profile = "minimal"

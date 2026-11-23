@@ -148,6 +148,12 @@ recorded in the [ADRs](docs/adr/).
   is using.
 - Static file serving no longer depends on `STATIC_DIR` having a trailing slash;
   paths are joined instead of string-concatenated.
+- Fuzzing now runs on the nightly the docs claimed was pinned:
+  `fuzz/rust-toolchain.toml` pins it, and the `just fuzz` recipe and the CI
+  fuzz-smoke job invoke cargo without a `+nightly` override, so the pin
+  governs on rustup systems. Plain cargo (e.g. nix toolchains) ignores the
+  pin file and uses the active nightly; the old `+nightly` form failed
+  outright on those (`cargo: no such command: +nightly`).
 
 ### Removed
 

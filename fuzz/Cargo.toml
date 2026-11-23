@@ -7,8 +7,8 @@ edition = "2024"
 [package.metadata]
 cargo-fuzz = true
 
-# Self-contained workspace: the fuzz harnesses are built with cargo-fuzz on a
-# pinned nightly and are deliberately outside the main workspace graph.
+# Self-contained workspace: the fuzz harnesses are built with cargo-fuzz on
+# the nightly pinned in rust-toolchain.toml, outside the main workspace graph.
 [workspace]
 
 [dependencies]

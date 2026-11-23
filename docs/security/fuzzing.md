@@ -1,9 +1,13 @@
 # Fuzzing
 
 The parsers at the trust boundary are fuzzed with `cargo-fuzz` (libFuzzer): the
-HTTP request parser and the WebSocket frame parser. The harnesses run on a
-pinned nightly and CI executes a 60-second smoke per target on every push and
-PR, archiving crash artifacts.
+HTTP request parser and the WebSocket frame parser. The harnesses run on the
+nightly pinned in [`fuzz/rust-toolchain.toml`](../../fuzz/rust-toolchain.toml)
+(currently `nightly-2026-11-21`); the `just fuzz` recipe and CI invoke cargo in
+`fuzz/` without a `+toolchain` override, so the pin governs. Plain cargo
+(e.g. a nix toolchain) ignores the file and uses the active nightly. CI
+executes a 60-second smoke per target on every push and PR, archiving crash
+artifacts.
 
 ## Targets
 
@@ -21,6 +25,7 @@ them directly fuzzable.
 ```txt
 fuzz/
 ├── Cargo.toml              # own workspace, excluded from the main graph
+├── rust-toolchain.toml     # pinned nightly for the harnesses
 ├── fuzz_targets/
 │   ├── request_head_parse.rs
 │   └── frame_parse.rs
@@ -39,8 +44,9 @@ variants so the fuzzer starts from known-good and known-edge inputs.
 ## How to run
 
 ```bash
-cargo +nightly fuzz run request_head_parse -- -dict=fuzz/dictionaries/http.dict -max_total_time=300
-cargo +nightly fuzz run frame_parse -- -dict=fuzz/dictionaries/websocket.dict -max_total_time=300
+cd fuzz
+cargo fuzz run request_head_parse -- -dict=dictionaries/http.dict -max_total_time=300
+cargo fuzz run frame_parse -- -dict=dictionaries/websocket.dict -max_total_time=300
 ```
 
 Omit `-max_total_time` for an indefinite local run. Crash inputs land in
