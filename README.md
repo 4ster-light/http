@@ -36,6 +36,7 @@ fuzzed in CI.
   - [Running the server](#running-the-server)
   - [Tests, lints and docs](#tests-lints-and-docs)
   - [Containers and demos](#containers-and-demos)
+  - [Dev container](#dev-container)
   - [HTTP endpoints](#http-endpoints)
   - [WebSocket endpoint](#websocket-endpoint)
 - [Trying it out](#trying-it-out)
@@ -103,6 +104,7 @@ Full requirement-by-requirement status:
 ```txt
 ├── Cargo.toml              # workspace root: shared deps + lints
 ├── justfile                # task runner: test, lint, fuzz, image, bench, demo
+├── .devcontainer/          # dev container: complete toolchain + nested Podman
 ├── container/              # pinned multi-stage image + compose (bench/attack profiles)
 ├── examples/               # client-side examples: ws_echo_client, ws_bench
 ├── fuzz/                   # cargo-fuzz harnesses (own workspace, nightly)
@@ -208,6 +210,14 @@ The attack scripts cite their control IDs (`SEC-HTTP-001/002`, `SEC-WS-001`) and
 exit non-zero if a mitigation does not hold. Results and methodology:
 [docs/benchmarking.md](docs/benchmarking.md).
 
+### Dev container
+
+The repository ships a dev container in `.devcontainer/`. It provides the
+complete toolchain: stable Rust, the pinned fuzz nightly, `just`, and
+python3. It also runs a nested Podman. Every justfile recipe works inside
+it, including the containerized demos and the benchmarks. See
+[.devcontainer/README.md](.devcontainer/README.md) for the design, the host
+requirements, and the verification record.
 ### HTTP endpoints
 
 - `GET /`: serves `crates/server/static/index.html`
@@ -335,6 +345,9 @@ Delivered milestones:
 - [x] **Reproducible demos**: containers, benchmarks, attack-mitigation demos
       ([docs/benchmarking.md](docs/benchmarking.md),
       [ADR-0009](docs/adr/0009-containerized-demos-and-benchmarks.md))
+- [x] **Dev container**: the complete toolchain and a nested Podman, so every
+      justfile recipe runs inside it
+      ([.devcontainer/README.md](.devcontainer/README.md))
 
 Explicit non-goals for now, recorded as future work rather than silently
 missing: HTTP/2, TLS, WebSocket extensions (permessage-deflate), response

@@ -43,6 +43,15 @@ See [benchmarking.md](benchmarking.md) for the recorded results and
 [ADR-0009](adr/0009-containerized-demos-and-benchmarks.md) for the container and
 demo decisions.
 
+## Dev container
+
+The repository ships a dev container in `.devcontainer/`. It provides the
+complete toolchain: stable Rust, the pinned fuzz nightly, `just`, and
+python3. It also runs a nested Podman. Every justfile recipe works inside
+the container, including the containerized demos and the benchmarks. See
+[.devcontainer/README.md](../.devcontainer/README.md) for the design, the
+host requirements, and the verification record.
+
 ## Lint policy
 
 Enforced workspace-wide via `[workspace.lints]` in the root `Cargo.toml` and

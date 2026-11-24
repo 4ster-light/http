@@ -1,0 +1,43 @@
+{
+    "name": "http-rs",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "."
+    },
+    "remoteUser": "root",
+    "runArgs": [
+        "--privileged",
+        "--security-opt",
+        "label=disable"
+    ],
+    "mounts": [
+        {
+            "source": "http-rs-podman-storage",
+            "target": "/var/lib/containers",
+            "type": "volume"
+        },
+        {
+            "source": "http-rs-cargo-registry",
+            "target": "/usr/local/cargo/registry",
+            "type": "volume"
+        }
+    ],
+    "forwardPorts": [8000, 8080],
+    "portsAttributes": {
+        "8000": { "label": "native demo server (just server)" },
+        "8080": { "label": "containerized demo stack (just up)" }
+    },
+    "postCreateCommand": "rustc --version && (cd fuzz && rustup show active-toolchain) && cargo fuzz --version && just --version && podman --version && python3 --version && podman info >/dev/null && echo nested-podman-OK",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml",
+                "astral-sh.ruff"
+            ],
+            "settings": {
+                "rust-analyzer.check.command": "clippy"
+            }
+        }
+    }
+}

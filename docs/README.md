@@ -9,10 +9,12 @@ with mdBook if that ever changes.
 
 - [architecture.md](architecture.md): workspace crates, dependency rules,
   concurrency and error models, request/connection lifecycles.
-- [development.md](development.md): toolchain, build/test/lint commands, lint
-  policy, how to write an ADR, CI gates.
+- [development.md](development.md): toolchain, dev container, build/test/lint
+  commands, lint policy, how to write an ADR, CI gates.
 - [testing.md](testing.md): test taxonomy, current inventory, naming
   conventions, what is coming in the security phase.
+- `.devcontainer/` (repo root): the dev container with the complete toolchain
+  and a nested Podman. See [.devcontainer/README.md](../.devcontainer/README.md).
 
 ## Protocol deep-dives
 

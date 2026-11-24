@@ -94,6 +94,10 @@ recorded in the [ADRs](docs/adr/).
     routed methods in `Allow`.
 - ADR-0010 (`Expect: 100-continue` handling) and ADR-0011 (WebSocket `Origin`
   validation kept as a declared accepted risk).
+- Dev container under `.devcontainer/`: the complete toolchain (stable Rust,
+  the pinned fuzz nightly, `just`, python3) and a nested Podman, so every
+  justfile recipe runs self-contained. The design, the host requirements,
+  and the verification record are documented in `.devcontainer/README.md`.
 
 ### Changed
 
