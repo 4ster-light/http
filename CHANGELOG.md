@@ -59,7 +59,7 @@ recorded in the [ADRs](docs/adr/).
     handler; graceful shutdown stays future work).
   - `container/compose.yaml` with profiles: `server` (always on), `bench` (wrk
     HTTP benchmark, `ws_bench` WebSocket benchmark), and `attack`
-    (`demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames` — stdlib
+    (`demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames`: stdlib
     Python scripts that print EXPECTED vs OBSERVED and exit non-zero when a
     mitigation does not hold).
   - `examples` workspace member with `ws_echo_client` (interactive client that
@@ -73,7 +73,7 @@ recorded in the [ADRs](docs/adr/).
     work from a clean machine.
   - `docs/benchmarking.md` results: keep-alive ON ~23.7k vs OFF ~4.8k req/s (≈5×
     connection-reuse payoff), ~0.46 ms p50 at light concurrency, ~66k WS echo
-    messages/s, ~5.6k handshakes/s — with environment disclosure and one-command
+    messages/s, ~5.6k handshakes/s, with environment disclosure and one-command
     repro steps.
   - ADR-0009 (containerized demos and benchmarks).
   - `websocket::handshake::accept_key` is public, so client implementations can
@@ -133,7 +133,7 @@ recorded in the [ADRs](docs/adr/).
   deep-dives, RFC matrices), and README badges for CI status, MIT license and
   `unsafe`-forbidden were added.
 - `server`: error responses (`431`, `413`, `400`, ...) are followed by a
-  graceful close — `shutdown` plus a bounded drain of unread request bytes —
+  graceful close (`shutdown` plus a bounded drain of unread request bytes)
   instead of an immediate socket drop. A close with unread receive-queue data
   completes as a TCP RST, and an RST racing the client's read could discard the
   queued response entirely, so clients (e.g. 64 KiB header bombs) intermittently
@@ -161,14 +161,14 @@ recorded in the [ADRs](docs/adr/).
 
 ### Removed
 
-- `REFINEMENTS.md` — its content was distributed: durable decisions → ADRs
+- `REFINEMENTS.md`; its content was distributed: durable decisions → ADRs
   0001–0005, flow diagrams → `docs/protocols/`, change history → this changelog,
   migration notes → the entry below.
 - Unused `bytes` dependency from the `http` crate; `chrono` from the tree.
 - The port-scan fallback in `Config::default()` and the
   `ServerError::PortUnavailable` variant.
 
-## [Refinements] — 2025-10-11
+## [Refinements] - 2025-10-11
 
 The pre-workspace hardening round (commit `87e9be1`), migrated from
 `REFINEMENTS.md`. File paths refer to the old single-crate layout.

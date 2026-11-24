@@ -55,7 +55,7 @@ clean:
 up: (clean)
     @# Ctrl-C stops the stack; `just` then prints
     @# `error: recipe up failed ... exit code 1`, which is its way of
-    @# reporting the interrupt — the containers are stopped.
+    @# reporting the interrupt; the containers are stopped.
     podman compose -f {{compose}} up server
 
 # Stop and remove the demo stack

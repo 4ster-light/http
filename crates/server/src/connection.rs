@@ -96,7 +96,7 @@ pub async fn handle_connection(mut socket: TcpStream, config: &Config) -> Result
 /// Writing the response and immediately dropping the socket is not enough:
 /// with request bytes still unread in the receive queue the close completes
 /// as a TCP RST, and an RST that races the client's read of the response can
-/// discard it entirely — the client sees an empty connection even though the
+/// discard it entirely: the client sees an empty connection even though the
 /// server answered (observed with 64 KiB header bombs: intermittent empty
 /// response instead of the correct `431`). The sequence here is write,
 /// `shutdown`s the write side so the client sees EOF after the response, then

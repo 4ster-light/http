@@ -192,8 +192,8 @@ the POST echo regression probe), a containerized build-and-smoke test and
 
 ### Containers and demos
 
-Everything runs reproducibly with [Podman](https://podman.io) — defender and
-adversary in one compose file (ADR-0009):
+Everything runs reproducibly with [Podman](https://podman.io). Defender and
+adversary live in one compose file (ADR-0009):
 
 ```bash
 just image                 # pinned multi-stage build (digest-pinned bases, --locked)

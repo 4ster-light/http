@@ -1,6 +1,6 @@
 # WebSocket protocol notes
 
-Deep-dive into the `websocket` crate. For the requirement-by-requirement status
+This document describes the `websocket` crate. For the requirement-by-requirement status
 see
 [../rfc-compliance/websocket-rfc6455.md](../rfc-compliance/websocket-rfc6455.md).
 
@@ -70,7 +70,7 @@ Read → parse one frame
 - **Liveness:** the first ping goes out one full interval (30 s) after the
   handshake, not immediately (F10 fixed); if no frame of any kind arrives by the
   next tick, the server sends close 1002 ("Ping timeout") (SEC-WS-008). Any
-  inbound frame — not only a Pong — counts as proof of liveness. The behavior is
+    inbound frame, not only a Pong, counts as proof of liveness. The behavior is
   pinned by paused-time tests.
 - **Origin:** browser `Origin` validation (RFC 6455 §10.2) is intentionally out
   of scope; the decision is recorded in

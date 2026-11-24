@@ -76,7 +76,7 @@ async fn session(socket: &mut TcpStream) -> Result<(), ClientError> {
             } else {
                 1005 // No status code present (RFC 6455 §7.1.5).
             };
-            println!("<- close ({code}) — connection closed cleanly");
+            println!("<- close ({code}), connection closed cleanly");
         }
         // The server may simply close the TCP stream after echoing our
         // close; both are acceptable §7.1.1 endings.

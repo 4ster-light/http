@@ -1,6 +1,6 @@
 # HTTP/1.1 protocol notes
 
-Deep-dive into the `http` crate and how `server` drives it. For the
+This document describes the `http` crate and how `server` drives it. For the
 requirement-by-requirement status see
 [../rfc-compliance/http-1.1.md](../rfc-compliance/http-1.1.md).
 

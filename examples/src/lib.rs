@@ -109,8 +109,8 @@ pub fn build_upgrade_request(host_header: &str, path: &str, key: &str) -> String
 
 /// Verifies the server's `101` handshake response head (RFC 6455 §4.2.2).
 ///
-/// Checks the status line, the `Upgrade`/`Connection` headers, and — most
-/// importantly — that `Sec-WebSocket-Accept` equals
+/// Checks the status line, the `Upgrade`/`Connection` headers, and, most
+/// importantly, that `Sec-WebSocket-Accept` equals
 /// [`accept_key`] applied to our key. RFC 6455 §4.2.2 requires the client to
 /// *fail the WebSocket connection* when the digest does not match, so this
 /// is not optional hardening: it is the handshake.

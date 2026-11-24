@@ -20,7 +20,7 @@ fi
 
 case "$target" in
     127.0.0.1:8080 | localhost:8080)
-        echo "no server on $target — starting the containerized demo server ..."
+        echo "no server on $target, starting the containerized demo server ..."
         (cd "$compose_dir" && podman compose -f compose.yaml up -d server)
         for _ in $(seq 1 60); do
             if probe; then

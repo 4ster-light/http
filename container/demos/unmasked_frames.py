@@ -4,8 +4,8 @@
 Performs a real opening handshake (RFC 6455 §4.2.1, verifying the
 `Sec-WebSocket-Accept` digest per §4.2.2), then sends two data frames:
 
-1. a correctly *masked* text frame — must be echoed (positive control);
-2. an *unmasked* text frame — a §5.3 violation (finding F6/forgery
+1. a correctly *masked* text frame: must be echoed (positive control);
+2. an *unmasked* text frame: a §5.3 violation (finding F6/forgery
    enabler: unmasked frames let malicious intermediaries forge traffic).
    The server must fail the connection with a `1002` close frame, not
    process the payload.

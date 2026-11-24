@@ -42,7 +42,7 @@ Requirements pulled from the refactor plan (§6):
    - default: the `server` service;
    - `bench`: `bench-http` (wrk, pinned image) and `bench-ws` (the `ws_bench`
      example compiled by `container/Containerfile.bench-ws`, slim runtime);
-   - `attack`: `demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames` —
+   - `attack`: `demo_slowloris`, `demo_header_bomb`, `demo_unmasked_frames`,
      stdlib-only Python scripts bind-mounted read-only, each printing EXPECTED
      vs OBSERVED and exiting non-zero when a mitigation does not hold.
 3. **Attack scripts are honest about scope.** Each cites its control ID

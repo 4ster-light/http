@@ -9,7 +9,7 @@ number below can be re-run with one command; see [Repro](#repro).
 2. Quantify the cost of the security controls added in the hardening phase.
    Hardening should be measurable, not hand-waved.
 3. The headline comparison: keep-alive ON vs OFF. Connection reuse is what the
-   F1 (buffer ownership) and F3 (enforced keep-alive) work delivered — this
+     F1 (buffer ownership) and F3 (enforced keep-alive) work delivered; this
    benchmark proves it instead of claiming it.
 
 ## Methodology
@@ -26,7 +26,7 @@ number below can be re-run with one command; see [Repro](#repro).
 - **Warm-up:** each wrk/ws_bench run includes its own ramp-up; short-lived
   connection pools are re-established per run.
 - **Repeatability:** three runs per scenario, median reported, all runs shown.
-  Numbers are _indicative_, not certified claims — hardware is a laptop; the
+  Numbers are _indicative_, not certified claims: hardware is a laptop; the
   point is the ratio between scenarios, not absolute records.
 
 ## Environment (recorded 2026-09-05, final image)
@@ -46,7 +46,7 @@ number below can be re-run with one command; see [Repro](#repro).
 > Absolute numbers move between sessions on this laptop (CPU governor, thermal
 > state, background load): an earlier session measured ~15.3k vs ~3.8k req/s for
 > the two headline scenarios. The **ratio between scenarios is the stable,
-> meaningful result** — treat the absolutes as indicative, exactly as the
+> meaningful result**: treat the absolutes as indicative, exactly as the
 > methodology says.
 
 ### HTTP static GET (`GET /`)
@@ -89,7 +89,7 @@ overhead in the single-threaded-per-connection client.
 
 A handshake includes TCP setup, the §4.2.1 request, the server's SHA-1
 accept-key computation, the client's §4.2.2 digest verification, a clean close
-exchange, and connection teardown — the full per-connection cost.
+exchange, and connection teardown: the full per-connection cost.
 
 ## What the security controls cost
 
@@ -97,7 +97,7 @@ The hardening phase did not slow the fast path measurably: the controls are
 checks at parse boundaries (size caps, per-read timeouts that only arm on
 stalls, close-code validation), all O(1) or O(n) over the input. At wrk-sized
 loads, syscall overhead dominates either way. The keep-alive ON vs OFF delta
-(~5×) is the price of _not_ reusing connections — which is precisely what the
+(~5×) is the price of _not_ reusing connections. Connection reuse is what the
 controls preserve for honest clients while shedding stalled or abusive ones.
 
 ## Repro

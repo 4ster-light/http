@@ -8,7 +8,7 @@ A server without this control would hold every socket open indefinitely
 connection with a `400` response, while normal traffic keeps working.
 
 Note the honest scope of the control: the timeout is a per-read idle
-timeout, so it kills connections that *stall* past the limit — exactly
+  timeout, so it kills connections that *stall* past the limit, which is exactly
 what this demo does. See docs/security/controls.md (SEC-HTTP-002).
 
 Usage: slowloris.py [--addr 127.0.0.1:8000] [--sockets 5] [--stall 12]
@@ -82,7 +82,7 @@ def main() -> int:
             else:
                 results.append((i, f"unexpected response: {data[:40]!r}"))
         except TimeoutError:
-            results.append((i, "still open (server waited) — NOT dropped"))
+            results.append((i, "still open (server waited), NOT dropped"))
         except OSError as e:
             results.append((i, f"connection error: {e}"))
         finally:

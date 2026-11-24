@@ -8,7 +8,7 @@ container, so no local tooling is required (reproducible benchmarks, ADR-0009).
 - One command, no install: `just bench-http http://127.0.0.1:8000/` pulls the
   pinned wrk image and runs it with host networking.
 - Same binary, same flags, same pinned digest on every machine that runs the
-  demo — results are comparable across environments (modulo hardware, which
+    demo, so results are comparable across environments (modulo hardware, which
   `docs/benchmarking.md` discloses).
 
 ## Scenarios
