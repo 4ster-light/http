@@ -2,7 +2,7 @@
 
 # HTTP & WebSockets in Rust
 
-[![CI](https://github.com/4ster-light/http/actions/workflows/cqc.yml/badge.svg?branch=main&event=push)](https://github.com/4ster-light/http/actions/workflows/cqc.yml)
+[![CI](https://github.com/4ster-light/http/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/4ster-light/http/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Unsafe code: forbidden](https://img.shields.io/badge/unsafe-forbidden-red)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/4ster-light)

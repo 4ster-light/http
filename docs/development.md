@@ -101,7 +101,7 @@ Live in [adr/](adr/). Format: [adr/0000-template.md](adr/0000-template.md)
 
 ## CI
 
-GitHub Actions (`.github/workflows/cqc.yml`) runs on every push to `main` and
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and
 every PR: `fmt --check`, `clippy --workspace --all-targets`, `test --workspace`,
 `doc --workspace`, a boot-and-curl smoke test of the server binary (including
 the POST echo F1 regression probe), a container build plus in-container

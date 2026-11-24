@@ -55,7 +55,7 @@ Omit `-max_total_time` for an indefinite local run. Crash inputs land in
 ## CI policy
 
 - A 60-second smoke run per target on every push and PR
-  (`.github/workflows/cqc.yml`, job `fuzz-smoke`), with `-rss_limit_mb=2560` as
+  (`.github/workflows/ci.yml`, job `fuzz-smoke`), with `-rss_limit_mb=2560` as
   an allocation guard.
 - Crash artifacts are archived as CI artifacts.
 - A found crash becomes a regression test in the relevant crate's
