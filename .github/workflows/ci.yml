@@ -1,4 +1,4 @@
-name: Code Quality Checks
+name: CI
 
 on:
   push:
@@ -88,9 +88,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-        # Must match the pin in fuzz/rust-toolchain.toml; the smoke steps below
-        # run inside fuzz/ and rely on it via that file.
-        - uses: dtolnay/rust-toolchain@nightly-2026-11-21
+      # Must match the pin in fuzz/rust-toolchain.toml; the smoke steps below
+      # run inside fuzz/ and rely on it via that file.
+      - uses: dtolnay/rust-toolchain@nightly-2026-11-21
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -101,14 +101,14 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
 
-        # No +toolchain override: the pin in fuzz/rust-toolchain.toml governs.
-        - name: Smoke run request_head_parse
-          working-directory: fuzz
-          run: cargo fuzz run request_head_parse -- -dict=dictionaries/http.dict -max_total_time=60 -rss_limit_mb=2560
+      # No +toolchain override: the pin in fuzz/rust-toolchain.toml governs.
+      - name: Smoke run request_head_parse
+        working-directory: fuzz
+        run: cargo fuzz run request_head_parse -- -dict=dictionaries/http.dict -max_total_time=60 -rss_limit_mb=2560
 
-        - name: Smoke run frame_parse
-          working-directory: fuzz
-          run: cargo fuzz run frame_parse -- -dict=dictionaries/websocket.dict -max_total_time=60 -rss_limit_mb=2560
+      - name: Smoke run frame_parse
+        working-directory: fuzz
+        run: cargo fuzz run frame_parse -- -dict=dictionaries/websocket.dict -max_total_time=60 -rss_limit_mb=2560
 
       - name: Archive crash artifacts
         if: failure()
@@ -134,7 +134,7 @@ jobs:
 
           # Wait for the server to accept connections (max 10 s).
           code=""
-          for i in $(seq 1 20); do
+            for _ in $(seq 1 20); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)
             [ "$code" = "200" ] && break
             sleep 0.5
